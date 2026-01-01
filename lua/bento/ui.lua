@@ -251,11 +251,39 @@ local function assign_smart_labels(buffers, available_keys)
     return label_assignment
 end
 
+-- Calculate window position based on config.position
+-- Supports: "top-left", "top-right", "middle-left", "middle-right",
+-- "bottom-left", "bottom-right"
+local function calculate_position(height, width)
+    local ui = vim.api.nvim_list_uis()[1]
+    local position = config.position or "middle-right"
+    local offset_x = config.offset_x or 0
+    local offset_y = config.offset_y or 0
+
+    local row, col
+
+    -- Vertical positioning
+    if position:match("^top") then
+        row = 0
+    elseif position:match("^bottom") then
+        row = ui.height - height
+    else
+        row = math.floor((ui.height - height) / 2)
+    end
+
+    -- Horizontal positioning
+    if position:match("left$") then
+        col = 0
+    else
+        col = ui.width - width + 1
+    end
+
+    return row + offset_y, col + offset_x
+end
+
 -- Create the transparent floating window
 local function create_window(height, width)
-    local ui = vim.api.nvim_list_uis()[1]
-    local row = math.floor((ui.height - height) / 2) + (config.offset_y or 0)
-    local col = ui.width - width + 1
+    local row, col = calculate_position(height, width)
 
     local bufnr = vim.api.nvim_create_buf(false, true)
     local win_id = vim.api.nvim_open_win(bufnr, false, {
@@ -290,9 +318,7 @@ local function update_window_size(width, height)
         return
     end
 
-    local ui = vim.api.nvim_list_uis()[1]
-    local row = math.floor((ui.height - height) / 2) + (config.offset_y or 0)
-    local col = ui.width - width + 1
+    local row, col = calculate_position(height, width)
 
     pcall(vim.api.nvim_win_set_config, bento_win_id, {
         relative = "editor",

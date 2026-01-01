@@ -89,7 +89,9 @@ All options with defaults:
 ```lua
 require("bento").setup({
     main_keymap = ";", -- Main toggle/expand key
-    offset_y = 0, -- Vertical offset from center
+    position = "middle-right", -- Menu position (see below)
+    offset_x = 0, -- Horizontal offset from position
+    offset_y = 0, -- Vertical offset from position
     dash_char = "─", -- Character for collapsed dashes
     label_padding = 1, -- Padding around labels
     max_open_buffers = -1, -- Max buffers (-1 = unlimited)
@@ -121,7 +123,9 @@ require("bento").setup({
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
 | `main_keymap` | string | `";"` | Primary key for menu toggle and expand |
-| `offset_y` | number | `0` | Vertical offset from center |
+| `position` | string | `"middle-right"` | Menu position: `"top-left"`, `"top-right"`, `"middle-left"`, `"middle-right"`, `"bottom-left"`, `"bottom-right"` |
+| `offset_x` | number | `0` | Horizontal offset from position |
+| `offset_y` | number | `0` | Vertical offset from position |
 | `dash_char` | string | `"─"` | Character for collapsed state lines |
 | `label_padding` | number | `1` | Padding on left/right of labels |
 | `max_open_buffers` | number | `-1` | Maximum number of buffers to keep open (`-1` = unlimited) |

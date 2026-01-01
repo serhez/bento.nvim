@@ -312,6 +312,8 @@ function M.setup(config)
 
     local default_config = {
         main_keymap = ";",
+        position = "middle-right",
+        offset_x = 0,
         offset_y = 0,
         dash_char = "─",
         label_padding = 1,
