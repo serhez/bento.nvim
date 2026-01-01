@@ -12,7 +12,7 @@ end
 -- Built-in actions
 M.actions = {
     open = {
-        key = "<C-o>",
+        key = "<CR>",
         hl = "DiagnosticVirtualTextHint",
         action = function(_, buf_name)
             local bufnr = vim.fn.bufnr(buf_name)
@@ -25,7 +25,7 @@ M.actions = {
         end,
     },
     delete = {
-        key = "<C-d>",
+        key = "<BS>",
         hl = "DiagnosticVirtualTextError",
         action = function(buf_id, _)
             vim.api.nvim_buf_delete(buf_id, { force = false })

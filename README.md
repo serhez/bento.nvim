@@ -38,8 +38,8 @@ Works out of the box with defaults. The main keymap is `;`:
 - `;` once → Open menu (collapsed, shows dashes)
 - `;` twice → Expand menu (shows labels and names) / Switch to last accessed buffer
 - Label key → Open that buffer
-- `<C-o>` → Enter open mode, then select buffer
-- `<C-d>` → Enter delete mode, then select buffer
+- `<CR>` → Enter open mode, then select buffer
+- `<BS>` → Enter delete mode, then select buffer
 - `|` → Enter vertical split mode, then select buffer
 - `_` → Enter horizontal split mode, then select buffer
 - `ESC` → Collapse back to dashes
@@ -59,8 +59,8 @@ Works out of the box with defaults. The main keymap is `;`:
 ## Actions
 
 Actions change label colors for visual feedback. Built-in actions:
-- **Open** (`<C-o>`): Opens selected buffer in current window
-- **Delete** (`<C-d>`): Deletes selected buffer
+- **Open** (`<CR>`): Opens selected buffer in current window
+- **Delete** (`<BS>`): Deletes selected buffer
 - **Vertical Split** (`|`): Opens selected buffer in a vertical split
 - **Horizontal Split** (`_`): Opens selected buffer in a horizontal split
 
@@ -192,7 +192,7 @@ require("bento").setup({
 require("bento").setup({
     actions = {
         open = {
-            key = "<CR>", -- Change from default <C-o>
+            key = "<C-o>", -- Change from default <CR>
             hl = "String",
             action = function(buf_id, buf_name)
                 vim.cmd("buffer " .. buf_id)
