@@ -227,5 +227,12 @@ actions = {
 
 ## Acknowledgments & inspiration
 
-- [buffer_manager.nvim](https://github.com/j-morano/buffer_manager.nvim) by [`j-morano`](https://github.com/j-morano)
-- [buffer-sticks.nvim](https://github.com/ahkohd/buffer-sticks.nvim) by [`ahkohd`](https://github.com/ahkohd)
+- [buffer-sticks.nvim](https://github.com/ahkohd/buffer-sticks.nvim) by [`ahkohd`](https://github.com/ahkohd): this plugin inspired many of the ideas implemented in `bento` (e.g., the dashed menu). You should also check out this plugin, it's very good and it pursues solutions to the same problems, often with very similar or identical approaches. Some key differences:
+    - `bento` aims at being of much lighter weight than `buffer-sticks`. For example, `buffer-sticks` has search functionality, which I consider to be outside of the scope of a buffer manager; if I want to search for a file, I can open my file search engine or explorer (`snacks.picker`, `telescope`, `fzf`, `oil`, `nvim-tree` etc.). Another example is buffer previews, which I consider to be clutter. I will attempt to keep `bento`'s experience reasonably stable in the future, which will revolve around action modes and highlights; I currently consider these mechanics to be sufficient for efficiently managing buffers in the simplest way possible.
+        - `bento`'s menu cannot receive focus, meaning that it cannot be traversed. The whole plugin is a two-key thing: you activate it and then decide where to go (ignoring actions here...).
+    - `bento` makes some of the UI utilities optional (e.g., the rendering of the collapsed menu).
+    - `bento` provides utilities for auto-closing buffers as new ones are opened.
+        - While I have considered --and tried-- to use pinning mechanisms to avoid closing certain buffers, the practical utility of this idea has never been on par with how good it sounds. I find it tedious to manually mark buffers and also would not like to keep in the back of my mind this "meta-task" while programming. I've tried to think of ways to automate this (e.g., using "frecency" metrics), but haven't been convinced by any so far.
+    - `bento` prioritizes single-character labels over matching the beginning of the filename. This is a personal preference (like everything else, really): I rather know that I just have to always press two keys to go where I need to go (i.e., `main` + `label`), than to know in advance what those keys are. Nonetheless, `bento`'s label generation algorithm prioritizes the set of labels that match the most amount of filenames' first character. I may change my mind about this in the future :)
+
+- [buffer_manager.nvim](https://github.com/j-morano/buffer_manager.nvim) by [`j-morano`](https://github.com/j-morano): I took architectural ideas from this plugin initially, although at this point the differences may be too large to notice.
