@@ -1,6 +1,6 @@
 <div align="center">
 
-<!-- ![logo]() -->
+![logo](https://github.com/user-attachments/assets/2105a347-4218-4afb-b20b-74fcbcff4b5a)
 
 # 🍱 bento.nvim
 
