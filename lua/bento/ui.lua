@@ -499,14 +499,21 @@ local function render_expanded()
     local padding = config.label_padding or 1
     local padding_str = string.rep(" ", padding)
 
+    local all_paths = {}
+    for _, mark in ipairs(marks) do
+        table.insert(all_paths, mark.filename)
+    end
+    local display_names = utils.get_display_names(all_paths)
+
     local max_content_width = 0
     local line_data = {}
 
     for i, mark in ipairs(marks) do
         local label = smart_labels[i] or " "
-        local filename = utils.get_file_name(mark.filename)
-        -- Format: [filename] [space] [padding][label][padding]
-        local content_width = vim.fn.strwidth(filename)
+        local display_name = display_names[mark.filename]
+            or utils.get_file_name(mark.filename)
+        -- Format: [display_name] [space] [padding][label][padding]
+        local content_width = vim.fn.strwidth(display_name)
             + 1
             + padding
             + #label
@@ -514,7 +521,7 @@ local function render_expanded()
         max_content_width = math.max(max_content_width, content_width)
         table.insert(line_data, {
             label = label,
-            filename = filename,
+            display_name = display_name,
             content_width = content_width,
         })
     end
@@ -523,10 +530,10 @@ local function render_expanded()
 
     for i, data in ipairs(line_data) do
         local left_space = max_content_width - data.content_width
-        -- Format: [padding][left_space][filename] [space] [padding][label][padding]
+        -- Format: [padding][left_space][display_name] [space] [padding][label][padding]
         local line = padding_str
             .. string.rep(" ", left_space)
-            .. data.filename
+            .. data.display_name
             .. " "
             .. padding_str
             .. data.label
@@ -552,9 +559,10 @@ local function render_expanded()
 
         if label and label ~= " " then
             local left_space = max_content_width - data.content_width
-            local filename_start = padding + left_space
-            local filename_end = filename_start + vim.fn.strwidth(data.filename)
-            local label_start = filename_end + 1 + padding
+            local display_name_start = padding + left_space
+            local display_name_end = display_name_start
+                + vim.fn.strwidth(data.display_name)
+            local label_start = display_name_end + 1 + padding
             local label_end = label_start + #label + padding
 
             local label_hl
@@ -594,7 +602,7 @@ local function render_expanded()
                     filename_hl,
                     i - 1,
                     0,
-                    filename_end + 1
+                    display_name_end + 1
                 )
             else
                 vim.api.nvim_buf_add_highlight(
@@ -602,8 +610,8 @@ local function render_expanded()
                     ns_id,
                     filename_hl,
                     i - 1,
-                    filename_start,
-                    filename_end
+                    display_name_start,
+                    display_name_end
                 )
             end
 
