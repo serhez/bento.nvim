@@ -40,6 +40,8 @@ Works out of the box with defaults. The main keymap is `;`:
 - Label key → Open that buffer
 - `<C-o>` → Enter open mode, then select buffer
 - `<C-d>` → Enter delete mode, then select buffer
+- `|` → Enter vertical split mode, then select buffer
+- `_` → Enter horizontal split mode, then select buffer
 - `ESC` → Collapse back to dashes
 
 ## Visual States
@@ -57,8 +59,10 @@ Works out of the box with defaults. The main keymap is `;`:
 ## Actions
 
 Actions change label colors for visual feedback. Built-in actions:
-- **Open** (`<C-o>`): Opens selected buffer (default yellow labels)
-- **Delete** (`<C-d>`): Deletes selected buffer (red labels)
+- **Open** (`<C-o>`): Opens selected buffer in current window
+- **Delete** (`<C-d>`): Deletes selected buffer
+- **Vertical Split** (`|`): Opens selected buffer in a vertical split
+- **Horizontal Split** (`_`): Opens selected buffer in a horizontal split
 
 ### Custom Actions
 
@@ -102,6 +106,8 @@ require("bento").setup({
         previous = "Search", -- Label for previous buffer (main_keymap label)
         label_open = "DiagnosticVirtualTextHint", -- Labels in open action mode
         label_delete = "DiagnosticVirtualTextError", -- Labels in delete action mode
+        label_vsplit = "DiagnosticVirtualTextHint", -- Labels in vertical split mode
+        label_split = "DiagnosticVirtualTextHint", -- Labels in horizontal split mode
         window_bg = "BentoNormal", -- Menu window background
     },
 
@@ -138,6 +144,8 @@ All highlights are configurable under the `highlights` table:
 | `previous` | `"Search"` | Label for previous buffer (the `main_keymap` label) |
 | `label_open` | `"DiagnosticVirtualTextHint"` | Labels in open action mode |
 | `label_delete` | `"DiagnosticVirtualTextError"` | Labels in delete action mode |
+| `label_vsplit` | `"DiagnosticVirtualTextHint"` | Labels in vertical split mode |
+| `label_split` | `"DiagnosticVirtualTextHint"` | Labels in horizontal split mode |
 | `window_bg` | `"BentoNormal"` | Menu window background (transparent by default) |
 
 

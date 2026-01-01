@@ -13,7 +13,7 @@ end
 M.actions = {
     open = {
         key = "<C-o>",
-        hl = "Search",
+        hl = "DiagnosticVirtualTextHint",
         action = function(_, buf_name)
             local bufnr = vim.fn.bufnr(buf_name)
             if bufnr ~= -1 then
@@ -26,10 +26,36 @@ M.actions = {
     },
     delete = {
         key = "<C-d>",
-        hl = "ErrorMsg",
+        hl = "DiagnosticVirtualTextError",
         action = function(buf_id, _)
             vim.api.nvim_buf_delete(buf_id, { force = false })
             require("bento.ui").refresh_menu()
+        end,
+    },
+    vsplit = {
+        key = "|",
+        hl = "DiagnosticVirtualTextHint",
+        action = function(_, buf_name)
+            local bufnr = vim.fn.bufnr(buf_name)
+            if bufnr ~= -1 then
+                vim.cmd("vsplit | buffer " .. bufnr)
+            else
+                vim.cmd("vsplit " .. buf_name)
+            end
+            require("bento.ui").close_menu()
+        end,
+    },
+    split = {
+        key = "_",
+        hl = "DiagnosticVirtualTextHint",
+        action = function(_, buf_name)
+            local bufnr = vim.fn.bufnr(buf_name)
+            if bufnr ~= -1 then
+                vim.cmd("split | buffer " .. bufnr)
+            else
+                vim.cmd("split " .. buf_name)
+            end
+            require("bento.ui").close_menu()
         end,
     },
 }
@@ -302,6 +328,8 @@ function M.setup(config)
             previous = "Search",
             label_open = "DiagnosticVirtualTextHint",
             label_delete = "DiagnosticVirtualTextError",
+            label_vsplit = "DiagnosticVirtualTextHint",
+            label_split = "DiagnosticVirtualTextHint",
             window_bg = "BentoNormal",
         },
     }
@@ -310,6 +338,8 @@ function M.setup(config)
 
     M.actions.open.hl = BentoConfig.highlights.label_open
     M.actions.delete.hl = BentoConfig.highlights.label_delete
+    M.actions.vsplit.hl = BentoConfig.highlights.label_vsplit
+    M.actions.split.hl = BentoConfig.highlights.label_split
 
     BentoConfig.actions = M.actions
 
