@@ -139,6 +139,18 @@ local function update_marks()
             end
         end
     end
+
+    config = bento.get_config()
+    if config.ordering_metric then
+        table.sort(marks, function(a, b)
+            local a_val = bento.get_ordering_value(a.buf_id)
+            local b_val = bento.get_ordering_value(b.buf_id)
+            if a_val == b_val then
+                return a.buf_id < b.buf_id
+            end
+            return a_val > b_val
+        end)
+    end
 end
 
 -- Get pagination info for floating UI
@@ -1554,6 +1566,7 @@ function M.collapse_menu()
         end
         is_expanded = false
         current_action = nil
+        tabline_start_idx = 1
         render_tabline_minimal()
         return
     end
@@ -1570,6 +1583,7 @@ function M.collapse_menu()
 
     is_expanded = false
     current_action = nil
+    current_page = 1
     render_collapsed()
 end
 
@@ -1593,6 +1607,8 @@ function M.select_buffer(idx)
     end
 
     if action_to_use == "open" then
+        bento.record_access(mark.buf_id)
+
         local target_win = vim.api.nvim_get_current_win()
 
         if vim.api.nvim_win_get_config(target_win).relative ~= "" then
@@ -1612,6 +1628,9 @@ function M.select_buffer(idx)
             vim.log.levels.ERROR,
             { title = "Buffer Manager" }
         )
+    else
+        current_page = 1
+        tabline_start_idx = 1
     end
 end
 

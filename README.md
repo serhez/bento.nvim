@@ -15,6 +15,7 @@ A minimalist, efficient, and extensible buffer manager for Neovim.
 - **Smart label assignment** based on filenames for quick buffer switching
 - **Last accessed buffer** quick switch (press `;` twice)
 - **Pagination** for large buffer lists (automatic when exceeding screen space, or configurable via `max_rendered_buffers`)
+- **Configurable buffer ordering** by access time or edit time (most recent first)
 - **Extensible action system** with visual feedback (open, delete, custom actions)
 - **Visual indicators** for current, active, and inactive buffers
 - **Buffer limit enforcement** with configurable deletion metrics (optional)
@@ -123,6 +124,7 @@ require("bento").setup({
     lock_char = "🔒", -- Character shown before locked buffer names
     max_open_buffers = nil, -- Max buffers (nil = unlimited)
     buffer_deletion_metric = "frecency_access", -- Metric for buffer deletion (see below)
+    ordering_metric = "access", -- Buffer ordering: nil (arbitrary), "access", or "edit"
     default_action = "open", -- Action when pressing label directly
 
     ui = {
@@ -177,6 +179,7 @@ require("bento").setup({
 | `lock_char` | string | `"🔒"` | Character displayed before locked buffer names |
 | `max_open_buffers` | number/nil | `nil` | Maximum number of buffers to keep open (`nil` = unlimited) |
 | `buffer_deletion_metric` | string | `"frecency_access"` | Metric used to decide which buffer to delete when limit is reached (see below) |
+| `ordering_metric` | string/nil | `"access"` | Buffer ordering: `nil` (arbitrary), `"access"` (by last access time), or `"edit"` (by last edit time). Most recent first. |
 | `default_action` | string | `"open"` | Default action mode when menu expands |
 | `highlights` | table | See below | Highlight groups for all UI elements |
 | `actions` | table | Built-in actions | Action definitions (see Actions section) |
@@ -269,6 +272,12 @@ require("bento").toggle_lock()      -- Toggle lock on current buffer
 require("bento").toggle_lock(bufnr) -- Toggle lock on specific buffer
 require("bento").is_locked()        -- Check if current buffer is locked
 require("bento").is_locked(bufnr)   -- Check if specific buffer is locked
+
+-- Note: Buffer metrics (access/edit times) and lock state are automatically
+-- persisted across sessions when using Neovim's :mksession and restored on
+-- SessionLoadPost. This ensures buffer ordering remains consistent after
+-- restarting Neovim with a saved session.
+-- Make sure you include "globals" in `sessionoptions`
 
 -- Command
 :BentoToggle

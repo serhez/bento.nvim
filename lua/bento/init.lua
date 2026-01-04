@@ -9,6 +9,11 @@ M.buffer_metrics = {}
 
 M.locked_buffers = {}
 
+-- Get current time in milliseconds
+local function get_time_ms()
+    return vim.uv.hrtime() / 1e6
+end
+
 function M.get_config()
     return BentoConfig or {}
 end
@@ -56,6 +61,64 @@ local function restore_locked_buffers()
         local buf_id = vim.fn.bufnr(path)
         if buf_id ~= -1 and vim.api.nvim_buf_is_valid(buf_id) then
             M.locked_buffers[buf_id] = true
+        end
+    end
+end
+
+-- Save buffer metrics to a global variable for session storage
+-- Only saves last access/edit time per path to keep data compact
+local function save_buffer_metrics()
+    local metrics_by_path = {}
+    for buf_id, metrics in pairs(M.buffer_metrics) do
+        if vim.api.nvim_buf_is_valid(buf_id) then
+            local path = vim.api.nvim_buf_get_name(buf_id)
+            if path and path ~= "" then
+                local last_access = metrics.access_times[#metrics.access_times]
+                local last_edit = metrics.edit_times[#metrics.edit_times]
+                if last_access or last_edit then
+                    metrics_by_path[path] = {
+                        a = last_access,
+                        e = last_edit,
+                    }
+                end
+            end
+        end
+    end
+    vim.g.BentoBufferMetrics = vim.json.encode(metrics_by_path)
+end
+
+-- Decode buffer metrics from global variable
+local function get_saved_buffer_metrics()
+    local raw = vim.g.BentoBufferMetrics
+    if not raw then
+        return nil
+    end
+    if type(raw) == "string" then
+        local ok, decoded = pcall(vim.json.decode, raw)
+        if ok and type(decoded) == "table" then
+            return decoded
+        end
+        return nil
+    elseif type(raw) == "table" then
+        return raw
+    end
+    return nil
+end
+
+-- Restore buffer metrics from global variable
+local function restore_buffer_metrics()
+    local saved_metrics = get_saved_buffer_metrics()
+    if not saved_metrics then
+        return
+    end
+
+    for path, metrics in pairs(saved_metrics) do
+        local buf_id = vim.fn.bufnr(path)
+        if buf_id ~= -1 and vim.api.nvim_buf_is_valid(buf_id) then
+            M.buffer_metrics[buf_id] = {
+                access_times = metrics.a and { metrics.a } or {},
+                edit_times = metrics.e and { metrics.e } or {},
+            }
         end
     end
 end
@@ -335,12 +398,32 @@ local function setup_autocmds()
         desc = "Restore locked buffer state from session",
     })
 
+    vim.api.nvim_create_autocmd("BufAdd", {
+        group = augroup,
+        callback = function(args)
+            local saved_metrics = get_saved_buffer_metrics()
+            if not saved_metrics then
+                return
+            end
+            local buf_path = vim.api.nvim_buf_get_name(args.buf)
+            if buf_path and buf_path ~= "" and saved_metrics[buf_path] then
+                local metrics = saved_metrics[buf_path]
+                require("bento").buffer_metrics[args.buf] = {
+                    access_times = metrics.a and { metrics.a } or {},
+                    edit_times = metrics.e and { metrics.e } or {},
+                }
+            end
+        end,
+        desc = "Restore buffer metrics from session",
+    })
+
     vim.api.nvim_create_autocmd("SessionLoadPost", {
         group = augroup,
         callback = function()
             restore_locked_buffers()
+            restore_buffer_metrics()
         end,
-        desc = "Restore locked buffers after session load",
+        desc = "Restore locked buffers and buffer metrics after session load",
     })
 end
 
@@ -358,18 +441,21 @@ end
 -- Record a buffer access event
 function M.record_access(buf_id)
     local metrics = get_buffer_metrics(buf_id)
-    table.insert(metrics.access_times, os.time())
+    table.insert(metrics.access_times, get_time_ms())
+    save_buffer_metrics()
 end
 
 -- Record a buffer edit event
 function M.record_edit(buf_id)
     local metrics = get_buffer_metrics(buf_id)
-    table.insert(metrics.edit_times, os.time())
+    table.insert(metrics.edit_times, get_time_ms())
+    save_buffer_metrics()
 end
 
 -- Clean up metrics for deleted buffers
 function M.cleanup_metrics(buf_id)
     M.buffer_metrics[buf_id] = nil
+    save_buffer_metrics()
     if M.locked_buffers[buf_id] then
         M.locked_buffers[buf_id] = nil
         save_locked_buffers()
@@ -403,11 +489,11 @@ local function calculate_frecency(timestamps)
         return 0
     end
 
-    local now = os.time()
+    local now = get_time_ms()
     local score = 0
 
     for _, timestamp in ipairs(timestamps) do
-        local age_hours = (now - timestamp) / 3600
+        local age_hours = (now - timestamp) / (1000 * 3600)
         score = score + (1 / (1 + age_hours))
     end
 
@@ -445,6 +531,37 @@ local function get_buffer_metric_value(buf_id, metric_type)
     if buf_info then
         return buf_info.lastused or 0
     end
+    return 0
+end
+
+-- Get the ordering metric value for a buffer (used for sorting)
+-- Returns higher values for more recently accessed/edited buffers
+function M.get_ordering_value(buf_id)
+    local config = M.get_config()
+    local ordering_metric = config.ordering_metric
+
+    if not ordering_metric then
+        return 0
+    end
+
+    local metrics = M.buffer_metrics[buf_id]
+
+    if ordering_metric == "access" then
+        if metrics and #metrics.access_times > 0 then
+            return metrics.access_times[#metrics.access_times]
+        end
+        local buf_info = vim.fn.getbufinfo(buf_id)[1]
+        if buf_info then
+            return buf_info.lastused or 0
+        end
+        return 0
+    elseif ordering_metric == "edit" then
+        if metrics and #metrics.edit_times > 0 then
+            return metrics.edit_times[#metrics.edit_times]
+        end
+        return 0
+    end
+
     return 0
 end
 
@@ -557,6 +674,7 @@ function M.setup(config)
         default_action = "open",
         max_open_buffers = nil, -- nil (unlimited) or number
         buffer_deletion_metric = "frecency_access", -- "recency_access", "recency_edit", "frecency_access", "frecency_edit"
+        ordering_metric = "access", -- nil (arbitrary) | "access" | "edit"
 
         ui = {
             mode = "floating", -- "floating" | "tabline"
