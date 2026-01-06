@@ -10,55 +10,49 @@ A minimalist and efficient yet powerful buffer manager for Neovim. Designed to b
 
 ## Showcase
 
-<table width="100%">
-  <tr>
-    <th>Default UI. Built-in actions: selection, deletion, splitting, and locking.</th>
-    <th>Dashed UI when collapsed. Built-in pagination. Non-saved highlights.</th>
-  </tr>
-  <tr>
-    <td width="50%">
-      <img src="https://github.com/user-attachments/assets/e0429af6-575e-48ea-bb9b-207526c7df13" />
-    </td>
-    <td width="50%">
-      <img src="https://github.com/user-attachments/assets/d9a636e2-3cd5-4549-be34-3bfe0b8cdec7" />
-    </td>
-  </tr>
-  <tr>
-    <th>Tabline UI with built-in pagination. Built-in actions. Auto-deletion & notifications.</th>
-    <th>Custom menu placement. Non-hidden collapsed UI. Built-in actions.</th>
-  </tr>
-  <tr>
-    <td width="50%">
-      <img src="https://github.com/user-attachments/assets/69a4afc2-3258-4f43-9ffe-882d502cfafd" />
-    </td>
-    <td width="50%">
-      <img src="https://github.com/user-attachments/assets/2f254dc0-9607-4bd4-84c6-f5b431f02b4f" />
-    </td>
-  </tr>
-</table>
+<details>
 
-https://github.com/user-attachments/assets/2f254dc0-9607-4bd4-84c6-f5b431f02b4f
+<summary>Default UI. Built-in actions: selection, deletion, splitting, and locking.</summary>
 
-https://github.com/user-attachments/assets/69a4afc2-3258-4f43-9ffe-882d502cfafd
+https://github.com/user-attachments/assets/e0429af6-575e-48ea-bb9b-207526c7df13
+
+</details>
+
+<details>
+
+<summary>Dashed UI when collapsed. Built-in pagination. Non-saved highlights.</summary>
 
 https://github.com/user-attachments/assets/d9a636e2-3cd5-4549-be34-3bfe0b8cdec7
 
-<img width="430" src="https://github.com/user-attachments/assets/e0429af6-575e-48ea-bb9b-207526c7df13" />
+</details>
+
+<details>
+
+<summary>Tabline UI with built-in pagination. Built-in actions. Auto-deletion & notifications.</summary>
+
+https://github.com/user-attachments/assets/69a4afc2-3258-4f43-9ffe-882d502cfafd
+
+</details>
+
+<details>
+
+<summary>Custom menu placement. Non-hidden collapsed UI. Built-in actions.</summary>
+
+https://github.com/user-attachments/assets/2f254dc0-9607-4bd4-84c6-f5b431f02b4f
+
+</details>
 
 ## Features
 
 - **Two UI modes**: Floating window (default) or tabline integration
-- **Transparent sidebar** with multiple collapsed states (dashes, filenames, full, or hidden) and expanded (labels + names) states
-- **Smart label assignment** based on filenames for quick buffer switching
-- **Last accessed buffer** quick switch (press `;` twice)
-- **Pagination** for large buffer lists (automatic when exceeding screen space, or configurable via `max_rendered_buffers`)
-- **Configurable buffer ordering** by access time or edit time (most recent first)
-- **Extensible action system** with visual feedback (open, delete, custom actions)
-- **Visual indicators** for current, active, and inactive buffers
+- **Extensible action system** with visual feedback (built-in actions: open, delete, split, lock)
+- **Customizable UI** with multiple collapsed states (dashes, filenames, full, or hidden) and placement options
+- **Smart one-char label assignment** based on filenames for quick buffer switching
+- **Last accessed/edited buffer quick switch** (press `;` twice)
 - **Buffer limit enforcement** with configurable deletion metrics (optional)
 - **Buffer locking** to protect important buffers from automatic deletion (persisted across sessions)
-- **Auto-collapse** on selection and cursor movement
-- **No dependencies**
+- **Pagination** for large buffer lists (automatic when exceeding screen space, or configurable via `max_rendered_buffers`)
+- **Configurable buffer ordering** by access time or edit time (most recent first)
 
 ## Installation
 
