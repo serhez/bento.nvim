@@ -610,11 +610,10 @@ local function render_dashed()
     local total_height = #visible_marks
 
     if needs_pagination then
-        local indicator = generate_pagination_indicator(total_width)
-        if indicator then
-            table.insert(contents, indicator)
-            total_height = total_height + 1
-        end
+        -- Add empty line to maintain alignment with expanded mode
+        -- (don't show indicator dots in dashed mode)
+        table.insert(contents, string.rep(" ", total_width))
+        total_height = total_height + 1
     end
 
     vim.api.nvim_buf_set_option(bento_bufh, "modifiable", true)
@@ -647,17 +646,6 @@ local function render_dashed()
                 -1
             )
         end
-    end
-
-    if needs_pagination then
-        vim.api.nvim_buf_add_highlight(
-            bento_bufh,
-            ns_id,
-            config.highlights.page_indicator,
-            #visible_marks,
-            0,
-            -1
-        )
     end
 
     clear_selection_keymaps()
