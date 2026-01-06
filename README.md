@@ -4,13 +4,46 @@
 
 # 🍱 bento.nvim
 
+A minimalist and efficient yet powerful buffer manager for Neovim. Designed to be extensible and customizable, both in terms of UI & functionality.
+
 </div>
 
-A minimalist, efficient, and extensible buffer manager for Neovim.
+## Showcase
 
+<table width="100%">
+  <tr>
+    <th>Default UI. Built-in actions: selection, deletion, splitting, and locking.</th>
+    <th>Dashed UI when collapsed. Built-in pagination. Non-saved highlights.</th>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="https://github.com/user-attachments/assets/e0429af6-575e-48ea-bb9b-207526c7df13" />
+    </td>
+    <td width="50%">
+      <img src="https://github.com/user-attachments/assets/d9a636e2-3cd5-4549-be34-3bfe0b8cdec7" />
+    </td>
+  </tr>
+  <tr>
+    <th>Tabline UI with built-in pagination. Built-in actions. Auto-deletion & notifications.</th>
+    <th>Custom menu placement. Non-hidden collapsed UI. Built-in actions.</th>
+  </tr>
+  <tr>
+    <td width="50%">
+      <img src="https://github.com/user-attachments/assets/69a4afc2-3258-4f43-9ffe-882d502cfafd" />
+    </td>
+    <td width="50%">
+      <img src="https://github.com/user-attachments/assets/2f254dc0-9607-4bd4-84c6-f5b431f02b4f" />
+    </td>
+  </tr>
+</table>
 
-https://github.com/user-attachments/assets/e0429af6-575e-48ea-bb9b-207526c7df13
+https://github.com/user-attachments/assets/2f254dc0-9607-4bd4-84c6-f5b431f02b4f
 
+https://github.com/user-attachments/assets/69a4afc2-3258-4f43-9ffe-882d502cfafd
+
+https://github.com/user-attachments/assets/d9a636e2-3cd5-4549-be34-3bfe0b8cdec7
+
+<img width="430" src="https://github.com/user-attachments/assets/e0429af6-575e-48ea-bb9b-207526c7df13" />
 
 ## Features
 
