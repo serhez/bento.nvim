@@ -694,6 +694,7 @@ function M.setup(config)
                 offset_x = 0,
                 offset_y = 0,
                 dash_char = "─",
+                border = "none",            -- "rounded" | "single" | "double" | etc. (see :h winborder)
                 label_padding = 1,
                 minimal_menu = nil, -- nil | "dashed" | "filename" | "full"
                 max_rendered_buffers = nil, -- nil (no limit) or number
