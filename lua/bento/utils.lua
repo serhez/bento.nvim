@@ -1,10 +1,18 @@
+--- Bento.nvim utility functions
+--- @module bento.utils
+
 local M = {}
 
+--- Extract the filename from a full file path
+--- @param file string Full file path
+--- @return string Filename without directory
 function M.get_file_name(file)
     return file:match("[^/\\]*$")
 end
 
--- Split a path into components (directories + filename)
+--- Split a path into components (directories + filename)
+--- @param path string File path
+--- @return string[] Path components
 local function split_path(path)
     local components = {}
     for part in string.gmatch(path, "[^/\\]+") do
@@ -13,7 +21,9 @@ local function split_path(path)
     return components
 end
 
--- Shorten home directory to ~
+--- Shorten home directory to ~
+--- @param path string File path
+--- @return string Path with home directory shortened
 local function shorten_home(path)
     local home = os.getenv("HOME")
     if home and path:sub(1, #home) == home then
@@ -22,8 +32,10 @@ local function shorten_home(path)
     return path
 end
 
--- Compute minimal distinguishing display names for a list of file paths
--- Returns a table mapping each path to its minimal display name
+--- Compute minimal distinguishing display names for a list of file paths
+--- Returns a table mapping each path to its minimal display name
+--- @param paths string[] List of file paths
+--- @return table<string, string> Mapping of path to display name
 function M.get_display_names(paths)
     local display_names = {}
 
@@ -97,10 +109,18 @@ function M.get_display_names(paths)
     return display_names
 end
 
+--- Check if a buffer is valid (listed and has a name)
+--- @param buf_id number Buffer ID
+--- @param buf_name string Buffer name
+--- @return boolean
 function M.buffer_is_valid(buf_id, buf_name)
     return vim.fn.buflisted(buf_id) == 1 and buf_name ~= ""
 end
 
+--- Recursively merge t2 into t1
+--- @param t1 table Target table
+--- @param t2 table Source table
+--- @return nil
 local function merge_table_impl(t1, t2)
     for k, v in pairs(t2) do
         if type(v) == "table" and type(t1[k]) == "table" then
@@ -111,6 +131,9 @@ local function merge_table_impl(t1, t2)
     end
 end
 
+--- Deep merge multiple tables
+--- @vararg table Tables to merge
+--- @return table Merged table
 function M.merge_tables(...)
     local out = {}
     for i = 1, select("#", ...) do

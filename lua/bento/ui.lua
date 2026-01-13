@@ -1,3 +1,6 @@
+--- Bento.nvim UI module - Handles floating window and tabline rendering
+--- @module bento.ui
+
 local bento = require("bento")
 local utils = require("bento.utils")
 local marks = require("bento").marks
@@ -5,27 +8,72 @@ local line_keys = require("bento").line_keys
 
 local M = {}
 
+--- Window ID of the bento floating window
+--- @type number|nil
 local bento_win_id = nil
+
+--- Buffer handle of the bento floating window
+--- @type number|nil
 local bento_bufh = nil
+
+--- Last editor window ID (non-floating window)
+--- @type number|nil
 local last_editor_win = nil
+
+--- Current plugin configuration
+--- @type table
 local config = bento.get_config()
+
+--- Whether the menu is in expanded state
+--- @type boolean
 local is_expanded = false
-local selection_mode_keymaps = {} -- Keys we've overridden
-local saved_keymaps = {} -- Original keymaps to restore
-local current_action = nil -- Track which action mode is active
-local minimal_menu_active = nil -- Current state of minimal menu (nil | "dashed" | "filename" | "full")
 
--- Tabline state
-local tabline_active = false -- Whether tabline UI is active
-local saved_tabline = nil -- Original tabline setting
-local saved_showtabline = nil -- Original showtabline setting
-local smart_labels_cache = {} -- Cache for smart labels used by tabline
-local tabline_start_idx = 1 -- First buffer index to display in tabline (1-indexed)
-local tabline_end_idx = 1 -- Last buffer index displayed in tabline (1-indexed)
+--- Keys we've overridden in selection mode
+--- @type string[]
+local selection_mode_keymaps = {}
 
--- Pagination state
-local current_page = 1 -- Current page (1-indexed)
+--- Original keymaps to restore when exiting selection mode
+--- @type table<string, table>
+local saved_keymaps = {}
 
+--- Currently active action mode (e.g., "open", "delete", "vsplit")
+--- @type string|nil
+local current_action = nil
+
+--- Current state of minimal menu (nil | "dashed" | "filename" | "full")
+--- @type string|nil
+local minimal_menu_active = nil
+
+--- Whether tabline UI is active
+--- @type boolean
+local tabline_active = false
+
+--- Original tabline setting
+--- @type string|nil
+local saved_tabline = nil
+
+--- Original showtabline setting
+--- @type number|nil
+local saved_showtabline = nil
+
+--- Cache for smart labels used by tabline
+--- @type table<number, string>
+local smart_labels_cache = {}
+
+--- First buffer index to display in tabline (1-indexed)
+--- @type number
+local tabline_start_idx = 1
+
+--- Last buffer index displayed in tabline (1-indexed)
+--- @type number
+local tabline_end_idx = 1
+
+--- Current page for floating UI pagination (1-indexed)
+--- @type number
+local current_page = 1
+
+--- Initialize UI state from configuration
+--- @return nil
 function M.setup_state()
     config = bento.get_config()
     if config.ui.mode == "tabline" then
@@ -36,19 +84,25 @@ function M.setup_state()
     end
 end
 
+--- Set the last editor window ID
+--- @param win_id number Window ID
+--- @return nil
 function M.set_last_editor_win(win_id)
     last_editor_win = win_id
 end
 
 vim.api.nvim_set_hl(0, "BentoNormal", { bg = "NONE", fg = "NONE" })
 
--- Check if using tabline UI
+--- Check if using tabline UI mode
+--- @return boolean
 local function is_tabline_ui()
     config = bento.get_config()
     return config.ui.mode == "tabline"
 end
 
--- Check if buffer is visible in current tab
+--- Check if buffer is visible in current tab
+--- @param buf_id number Buffer ID
+--- @return boolean
 local function is_buffer_visible_in_tab(buf_id)
     for _, win_id in ipairs(vim.api.nvim_tabpage_list_wins(0)) do
         if
@@ -61,7 +115,8 @@ local function is_buffer_visible_in_tab(buf_id)
     return false
 end
 
--- Get the last accessed buffer not currently visible
+--- Get the last accessed buffer not currently visible
+--- @return number|nil Buffer ID or nil if none found
 local function get_last_accessed_buffer()
     local sorted_buffers = {}
     for _, mark in ipairs(marks) do
@@ -88,7 +143,9 @@ local function get_last_accessed_buffer()
     return nil
 end
 
--- Get the index of a buffer in the marks list
+--- Get the index of a buffer in the marks list
+--- @param buf_id number Buffer ID
+--- @return number|nil Index (1-indexed) or nil if not found
 local function get_buffer_index(buf_id)
     for i, mark in ipairs(marks) do
         if mark.buf_id == buf_id then
@@ -98,7 +155,8 @@ local function get_buffer_index(buf_id)
     return nil
 end
 
--- Find main content window (non-floating)
+--- Find main content window (non-floating)
+--- @return number Window ID
 local function find_main_window()
     local current_win = vim.api.nvim_get_current_win()
     if vim.api.nvim_win_get_config(current_win).relative == "" then
@@ -112,7 +170,8 @@ local function find_main_window()
     return current_win
 end
 
--- Update marks (buffer list)
+--- Update marks (buffer list) by removing invalid buffers and adding new ones
+--- @return nil
 local function update_marks()
     -- Remove invalid buffers
     for idx = #marks, 1, -1 do
@@ -153,8 +212,10 @@ local function update_marks()
     end
 end
 
--- Get pagination info for floating UI
--- Returns: max_per_page, total_pages, needs_pagination
+--- Get pagination info for floating UI
+--- @return number max_per_page Maximum buffers per page
+--- @return number total_pages Total number of pages
+--- @return boolean needs_pagination Whether pagination is needed
 local function get_pagination_info()
     local max_rendered = config.ui.floating.max_rendered_buffers
 
@@ -181,8 +242,9 @@ local function get_pagination_info()
     return effective_max, total_pages, true
 end
 
--- Get the slice of marks for the current page
--- Returns: visible_marks, start_index (1-indexed)
+--- Get the slice of marks for the current page
+--- @return table[] visible_marks List of marks for current page
+--- @return number start_index Starting index (1-indexed)
 local function get_page_marks()
     local max_per_page, total_pages, needs_pagination = get_pagination_info()
     if not needs_pagination then
@@ -202,7 +264,9 @@ local function get_page_marks()
     return visible_marks, start_idx
 end
 
--- Generate pagination indicator string (e.g., "●○○" for page 1 of 3)
+--- Generate pagination indicator string
+--- @param width number Total width for the indicator
+--- @return string|nil Formatted indicator string or nil if no pagination needed
 local function generate_pagination_indicator(width)
     local _, total_pages, needs_pagination = get_pagination_info()
     if not needs_pagination then
@@ -227,7 +291,10 @@ local function generate_pagination_indicator(width)
         .. string.rep(" ", width - padding - indicator_width)
 end
 
--- Assign smart labels to buffers
+--- Assign smart labels to buffers
+--- @param buffers table[] List of buffer marks
+--- @param available_keys string[] List of available keys for labels
+--- @return table<number, string> Mapping of buffer index to label
 local function assign_smart_labels(buffers, available_keys)
     local label_assignment = {}
     local used_labels = {}
@@ -358,9 +425,12 @@ local function assign_smart_labels(buffers, available_keys)
     return label_assignment
 end
 
--- Calculate window position based on config.ui.floating.position
--- Supports: "top-left", "top-right", "middle-left", "middle-right",
--- "bottom-left", "bottom-right"
+--- Calculate window position based on config.ui.floating.position
+--- Supports: "top-left", "top-right", "middle-left", "middle-right", "bottom-left", "bottom-right"
+--- @param height number Window height
+--- @param width number Window width
+--- @return number row Row position
+--- @return number col Column position
 local function calculate_position(height, width)
     local ui = vim.api.nvim_list_uis()[1]
     local floating = config.ui.floating
@@ -389,7 +459,10 @@ local function calculate_position(height, width)
     return row + offset_y, col + offset_x
 end
 
--- Create the transparent floating window
+--- Create a transparent floating window
+--- @param height number Window height
+--- @param width number Window width
+--- @return {bufnr: number, win_id: number}
 local function create_window(height, width)
     local row, col = calculate_position(height, width)
 
@@ -420,7 +493,10 @@ local function create_window(height, width)
     return { bufnr = bufnr, win_id = win_id }
 end
 
--- Update window size dynamically
+--- Update window size dynamically
+--- @param width number New width
+--- @param height number New height
+--- @return nil
 local function update_window_size(width, height)
     if not bento_win_id or not vim.api.nvim_win_is_valid(bento_win_id) then
         return
@@ -437,7 +513,9 @@ local function update_window_size(width, height)
     })
 end
 
--- Check if buffer is active (i.e., visible in any window)
+--- Check if buffer is active (visible in any window)
+--- @param buf_id number Buffer ID
+--- @return boolean
 local function is_buffer_active(buf_id)
     for _, win_id in ipairs(vim.api.nvim_list_wins()) do
         if
@@ -450,21 +528,28 @@ local function is_buffer_active(buf_id)
     return false
 end
 
--- Check if buffer is the current buffer in the last editor window
+--- Check if buffer is the current buffer in the last editor window
+--- @param buf_id number Buffer ID
+--- @return boolean
 local function is_current_buffer(buf_id)
     return last_editor_win
         and vim.api.nvim_win_is_valid(last_editor_win)
         and vim.api.nvim_win_get_buf(last_editor_win) == buf_id
 end
 
--- Generate dash line for a buffer
+--- Generate dash line for a buffer
+--- @param buf_id number Buffer ID
+--- @return string Dash line string
 local function generate_dash_line(buf_id)
     local dash_char = config.ui.floating.dash_char
     return is_current_buffer(buf_id) and (dash_char:rep(2))
         or (" " .. dash_char)
 end
 
--- Save original keymap before overriding
+--- Save original keymap before overriding
+--- @param mode string Vim mode (e.g., "n")
+--- @param key string Key to save
+--- @return nil
 local function save_keymap(mode, key)
     local normalized_key = vim.api.nvim_replace_termcodes(key, true, true, true)
 
@@ -491,7 +576,10 @@ local function save_keymap(mode, key)
     saved_keymaps[key] = nil
 end
 
--- Restore original keymap
+--- Restore original keymap
+--- @param mode string Vim mode (e.g., "n")
+--- @param key string Key to restore
+--- @return nil
 local function restore_keymap(mode, key)
     local original = saved_keymaps[key]
 
@@ -522,7 +610,8 @@ local function restore_keymap(mode, key)
     saved_keymaps[key] = nil
 end
 
--- Clear all selection mode keymaps and restore originals
+--- Clear all selection mode keymaps and restore originals
+--- @return nil
 local function clear_selection_keymaps()
     for _, key in ipairs(selection_mode_keymaps) do
         restore_keymap("n", key)
@@ -530,7 +619,9 @@ local function clear_selection_keymaps()
     selection_mode_keymaps = {}
 end
 
--- Set global keybindings for selection mode
+--- Set global keybindings for selection mode
+--- @param smart_labels table<number, string> Mapping of buffer index to label
+--- @return nil
 local function set_selection_keybindings(smart_labels)
     clear_selection_keymaps()
 
@@ -583,7 +674,8 @@ local function set_selection_keybindings(smart_labels)
     table.insert(selection_mode_keymaps, "<ESC>")
 end
 
--- Display menu in dashed collapsed state
+--- Display menu in dashed collapsed state
+--- @return nil
 local function render_dashed()
     if not bento_bufh or not vim.api.nvim_buf_is_valid(bento_bufh) then
         return
@@ -651,7 +743,8 @@ local function render_dashed()
     clear_selection_keymaps()
 end
 
--- Display menu in filename-only collapsed state
+--- Display menu in filename-only collapsed state
+--- @return nil
 local function render_filename_collapsed()
     if not bento_bufh or not vim.api.nvim_buf_is_valid(bento_bufh) then
         return
@@ -782,7 +875,9 @@ local function render_filename_collapsed()
     clear_selection_keymaps()
 end
 
--- Display menu in expanded state (labels + names)
+--- Display menu in expanded state (labels + names)
+--- @param is_minimal_full boolean|nil If true, uses minimal highlight for labels
+--- @return nil
 local function render_expanded(is_minimal_full)
     if not bento_bufh or not vim.api.nvim_buf_is_valid(bento_bufh) then
         return
@@ -966,8 +1061,8 @@ local function render_expanded(is_minimal_full)
     end
 end
 
--- Calculate segment widths for all marks (used for tabline pagination)
--- Returns: array of widths for each mark
+--- Calculate segment widths for all marks (used for tabline pagination)
+--- @return number[] Array of widths for each mark
 local function get_tabline_segment_widths()
     config = bento.get_config()
     local smart_labels = assign_smart_labels(marks, line_keys)
@@ -1001,8 +1096,9 @@ local function get_tabline_segment_widths()
     return widths
 end
 
--- Calculate the start index for the previous page in tabline
--- Given the current start_idx, find where the previous page should start
+--- Calculate the start index for the previous page in tabline
+--- @param current_start_idx number Current starting index
+--- @return number Start index for previous page
 local function get_tabline_prev_page_start(current_start_idx)
     if current_start_idx <= 1 then
         return 1
@@ -1053,9 +1149,10 @@ local function get_tabline_prev_page_start(current_start_idx)
     return start_idx
 end
 
--- Generate the tabline string for rendering
--- is_minimal: if true, uses minimal highlight for labels
--- Returns: tabline_string, end_idx (last visible buffer index)
+--- Generate the tabline string for rendering
+--- @param is_minimal boolean If true, uses minimal highlight for labels
+--- @return string tabline_string The formatted tabline string
+--- @return number end_idx Last visible buffer index
 local function generate_tabline_string(is_minimal)
     config = bento.get_config()
     update_marks()
@@ -1287,7 +1384,8 @@ local function generate_tabline_string(is_minimal)
     return table.concat(parts, ""), end_idx
 end
 
--- Render tabline in expanded state (labels visible, keymaps active)
+--- Render tabline in expanded state (labels visible, keymaps active)
+--- @return nil
 local function render_tabline_expanded()
     config = bento.get_config()
     update_marks()
@@ -1305,7 +1403,8 @@ local function render_tabline_expanded()
     set_selection_keybindings(smart_labels)
 end
 
--- Render tabline in minimal state
+--- Render tabline in minimal state
+--- @return nil
 local function render_tabline_minimal()
     config = bento.get_config()
     update_marks()
@@ -1322,7 +1421,8 @@ local function render_tabline_minimal()
     clear_selection_keymaps()
 end
 
--- Save original tabline settings
+--- Save original tabline settings
+--- @return nil
 local function save_tabline_settings()
     if saved_tabline == nil then
         saved_tabline = vim.o.tabline
@@ -1330,7 +1430,8 @@ local function save_tabline_settings()
     end
 end
 
--- Restore original tabline settings
+--- Restore original tabline settings
+--- @return nil
 local function restore_tabline_settings()
     if saved_tabline ~= nil then
         vim.o.tabline = saved_tabline
@@ -1340,7 +1441,8 @@ local function restore_tabline_settings()
     end
 end
 
--- Render the appropriate collapsed view based on `minimal_menu` mode
+--- Render the appropriate collapsed view based on minimal_menu mode
+--- @return nil
 local function render_collapsed()
     if minimal_menu_active == "dashed" then
         render_dashed()
@@ -1351,7 +1453,8 @@ local function render_collapsed()
     end
 end
 
--- Close the menu completely
+--- Close the menu completely
+--- @return nil
 function M.close_menu()
     if is_tabline_ui() then
         restore_tabline_settings()
@@ -1375,7 +1478,8 @@ function M.close_menu()
     clear_selection_keymaps()
 end
 
--- Go to next page
+--- Go to next page
+--- @return nil
 function M.next_page()
     if is_tabline_ui() then
         if not tabline_active or not is_expanded then
@@ -1403,7 +1507,8 @@ function M.next_page()
     end
 end
 
--- Go to previous page
+--- Go to previous page
+--- @return nil
 function M.prev_page()
     if is_tabline_ui() then
         if not tabline_active or not is_expanded then
@@ -1431,7 +1536,9 @@ function M.prev_page()
     end
 end
 
--- Toggle menu (create or close)
+--- Toggle menu (create or close)
+--- @param force_create boolean|nil If true, force create menu even without minimal mode
+--- @return nil
 function M.toggle_menu(force_create)
     M.setup_state()
 
@@ -1522,7 +1629,8 @@ function M.toggle_menu(force_create)
     end
 end
 
--- Expand menu to show labels and names
+--- Expand menu to show labels and names
+--- @return nil
 function M.expand_menu()
     if is_tabline_ui() then
         if not tabline_active then
@@ -1544,7 +1652,8 @@ function M.expand_menu()
     render_expanded()
 end
 
--- Collapse menu back to minimal view
+--- Collapse menu back to minimal view
+--- @return nil
 function M.collapse_menu()
     M.setup_state()
 
@@ -1575,7 +1684,9 @@ function M.collapse_menu()
     render_collapsed()
 end
 
--- Select buffer by index
+--- Select buffer by index
+--- @param idx number Buffer index in marks list (1-indexed)
+--- @return nil
 function M.select_buffer(idx)
     local mark = marks[idx]
     if not mark then
@@ -1622,7 +1733,9 @@ function M.select_buffer(idx)
     end
 end
 
--- Set action mode
+--- Set action mode
+--- @param action_name string Name of the action (e.g., "open", "delete", "vsplit")
+--- @return nil
 function M.set_action_mode(action_name)
     if not config.actions[action_name] then
         vim.notify(
@@ -1647,7 +1760,8 @@ function M.set_action_mode(action_name)
     end
 end
 
--- Handle main keymap press
+--- Handle main keymap press
+--- @return nil
 function M.handle_main_keymap()
     M.setup_state()
 
@@ -1692,7 +1806,8 @@ function M.handle_main_keymap()
     end
 end
 
--- Refresh menu if open
+--- Refresh menu if open
+--- @return nil
 function M.refresh_menu()
     M.setup_state()
 
@@ -1737,9 +1852,10 @@ function M.refresh_menu()
     end
 end
 
--- Toggle the minimal menu mode dynamically
--- Cycles through: nil -> "dashed" -> "filename" -> "full"
--- Note: This function is ignored when ui = "tabline"
+--- Toggle the minimal menu mode dynamically
+--- Cycles through: nil -> "dashed" -> "filename" -> "full"
+--- Note: This function is ignored when ui.mode = "tabline"
+--- @return nil
 function M.toggle_minimal_menu()
     M.setup_state()
 

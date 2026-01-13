@@ -1,24 +1,39 @@
+--- Bento.nvim - A buffer management plugin for Neovim
+--- @module bento
+
 local utils = require("bento.utils")
 
 local M = {}
 
+--- Global configuration table for bento.nvim
 BentoConfig = BentoConfig or {}
+
+--- List of buffer marks (tracked buffers with filename and buf_id)
+--- @type table[]
 M.marks = {}
 
+--- Metrics for each buffer (access times, edit times)
+--- @type table<number, {access_times: number[], edit_times: number[]}>
 M.buffer_metrics = {}
 
+--- Set of locked buffer IDs (protected from automatic deletion)
+--- @type table<number, boolean>
 M.locked_buffers = {}
 
--- Get current time in milliseconds
+--- Get current time in milliseconds
+--- @return number
 local function get_time_ms()
     return vim.uv.hrtime() / 1e6
 end
 
+--- Get the current plugin configuration
+--- @return table
 function M.get_config()
     return BentoConfig or {}
 end
 
--- Save locked buffer paths to a global variable for session storage
+--- Save locked buffer paths to a global variable for session storage
+--- @return nil
 local function save_locked_buffers()
     local locked_paths = {}
     for buf_id, _ in pairs(M.locked_buffers) do
@@ -32,7 +47,8 @@ local function save_locked_buffers()
     vim.g.BentoLockedBuffers = vim.json.encode(locked_paths)
 end
 
--- Helper to decode locked paths from global variable
+--- Decode locked paths from global variable
+--- @return string[]|nil
 local function get_locked_paths()
     local raw = vim.g.BentoLockedBuffers
     if not raw then
@@ -50,7 +66,8 @@ local function get_locked_paths()
     return nil
 end
 
--- Restore locked buffers from global variable
+--- Restore locked buffers from global variable
+--- @return nil
 local function restore_locked_buffers()
     local locked_paths = get_locked_paths()
     if not locked_paths then
@@ -65,8 +82,9 @@ local function restore_locked_buffers()
     end
 end
 
--- Save buffer metrics to a global variable for session storage
--- Only saves last access/edit time per path to keep data compact
+--- Save buffer metrics to a global variable for session storage
+--- Only saves last access/edit time per path to keep data compact
+--- @return nil
 local function save_buffer_metrics()
     local metrics_by_path = {}
     for buf_id, metrics in pairs(M.buffer_metrics) do
@@ -87,7 +105,8 @@ local function save_buffer_metrics()
     vim.g.BentoBufferMetrics = vim.json.encode(metrics_by_path)
 end
 
--- Decode buffer metrics from global variable
+--- Decode buffer metrics from global variable
+--- @return table<string, {a: number?, e: number?}>|nil
 local function get_saved_buffer_metrics()
     local raw = vim.g.BentoBufferMetrics
     if not raw then
@@ -105,7 +124,8 @@ local function get_saved_buffer_metrics()
     return nil
 end
 
--- Restore buffer metrics from global variable
+--- Restore buffer metrics from global variable
+--- @return nil
 local function restore_buffer_metrics()
     local saved_metrics = get_saved_buffer_metrics()
     if not saved_metrics then
@@ -123,7 +143,8 @@ local function restore_buffer_metrics()
     end
 end
 
--- Built-in actions
+--- Built-in actions for buffer operations
+--- @type table<string, {key: string, hl: string, action: function}>
 M.actions = {
     open = {
         key = "<CR>",
@@ -182,7 +203,8 @@ M.actions = {
     },
 }
 
--- Keys to use for labels
+--- Keys available for buffer labels (a-z, A-Z, 0-9)
+--- @type string[]
 M.line_keys = {
     "a",
     "b",
@@ -248,6 +270,8 @@ M.line_keys = {
     "9",
 }
 
+--- Set up the main keymap for toggling the buffer menu
+--- @return nil
 local function setup_main_keymap()
     local config = M.get_config()
     if config.main_keymap and config.main_keymap ~= "" then
@@ -260,6 +284,8 @@ local function setup_main_keymap()
     end
 end
 
+--- Set up autocommands for buffer tracking and menu updates
+--- @return nil
 local function setup_autocmds()
     vim.api.nvim_create_user_command("BentoToggle", function()
         require("bento.ui").toggle_menu()
@@ -427,7 +453,9 @@ local function setup_autocmds()
     })
 end
 
--- Initialize or get metrics for a buffer
+--- Initialize or get metrics for a buffer
+--- @param buf_id number Buffer ID
+--- @return {access_times: number[], edit_times: number[]}
 local function get_buffer_metrics(buf_id)
     if not M.buffer_metrics[buf_id] then
         M.buffer_metrics[buf_id] = {
@@ -438,21 +466,27 @@ local function get_buffer_metrics(buf_id)
     return M.buffer_metrics[buf_id]
 end
 
--- Record a buffer access event
+--- Record a buffer access event
+--- @param buf_id number Buffer ID
+--- @return nil
 function M.record_access(buf_id)
     local metrics = get_buffer_metrics(buf_id)
     table.insert(metrics.access_times, get_time_ms())
     save_buffer_metrics()
 end
 
--- Record a buffer edit event
+--- Record a buffer edit event
+--- @param buf_id number Buffer ID
+--- @return nil
 function M.record_edit(buf_id)
     local metrics = get_buffer_metrics(buf_id)
     table.insert(metrics.edit_times, get_time_ms())
     save_buffer_metrics()
 end
 
--- Clean up metrics for deleted buffers
+--- Clean up metrics for deleted buffers
+--- @param buf_id number Buffer ID
+--- @return nil
 function M.cleanup_metrics(buf_id)
     M.buffer_metrics[buf_id] = nil
     save_buffer_metrics()
@@ -462,14 +496,18 @@ function M.cleanup_metrics(buf_id)
     end
 end
 
--- Check if a buffer is locked
+--- Check if a buffer is locked
+--- @param buf_id number|nil Buffer ID (defaults to current buffer)
+--- @return boolean
 function M.is_locked(buf_id)
     buf_id = buf_id or vim.api.nvim_get_current_buf()
     return M.locked_buffers[buf_id] == true
 end
 
--- Toggle the lock status of a buffer
--- Locked buffers are protected from automatic deletion
+--- Toggle the lock status of a buffer
+--- Locked buffers are protected from automatic deletion
+--- @param buf_id number|nil Buffer ID (defaults to current buffer)
+--- @return boolean Whether the buffer is now locked
 function M.toggle_lock(buf_id)
     buf_id = buf_id or vim.api.nvim_get_current_buf()
     if M.locked_buffers[buf_id] then
@@ -481,9 +519,11 @@ function M.toggle_lock(buf_id)
     return M.locked_buffers[buf_id] == true
 end
 
--- Calculate frecency score for a list of timestamps
--- Uses a decay-based algorithm where recent events score higher
--- Formula: sum of (1 / (1 + age_in_hours)) for each event
+--- Calculate frecency score for a list of timestamps
+--- Uses a decay-based algorithm where recent events score higher
+--- Formula: sum of (1 / (1 + age_in_hours)) for each event
+--- @param timestamps number[] List of timestamps in milliseconds
+--- @return number Frecency score
 local function calculate_frecency(timestamps)
     if not timestamps or #timestamps == 0 then
         return 0
@@ -500,7 +540,10 @@ local function calculate_frecency(timestamps)
     return score
 end
 
--- Get the metric value for a buffer based on the configured metric type
+--- Get the metric value for a buffer based on the configured metric type
+--- @param buf_id number Buffer ID
+--- @param metric_type string One of "recency_access", "recency_edit", "frecency_access", "frecency_edit"
+--- @return number Metric value
 local function get_buffer_metric_value(buf_id, metric_type)
     local metrics = M.buffer_metrics[buf_id]
 
@@ -534,8 +577,10 @@ local function get_buffer_metric_value(buf_id, metric_type)
     return 0
 end
 
--- Get the ordering metric value for a buffer (used for sorting)
--- Returns higher values for more recently accessed/edited buffers
+--- Get the ordering metric value for a buffer (used for sorting)
+--- Returns higher values for more recently accessed/edited buffers
+--- @param buf_id number Buffer ID
+--- @return number Ordering value
 function M.get_ordering_value(buf_id)
     local config = M.get_config()
     local ordering_metric = config.ordering_metric
@@ -565,7 +610,8 @@ function M.get_ordering_value(buf_id)
     return 0
 end
 
--- Initialize marks for all valid buffers
+--- Initialize marks for all valid buffers
+--- @return nil
 function M.initialize_marks()
     for _, buf_id in ipairs(vim.api.nvim_list_bufs()) do
         local buf_name = vim.api.nvim_buf_get_name(buf_id)
@@ -575,7 +621,8 @@ function M.initialize_marks()
     end
 end
 
--- Get buffer to delete based on configured metric (excluding current, visible, and locked buffers)
+--- Get buffer to delete based on configured metric (excluding current, visible, and locked buffers)
+--- @return number|nil Buffer ID of the least recently used buffer, or nil if none found
 function M.get_lru_buffer()
     local config = M.get_config()
     local metric_type = config.buffer_deletion_metric or "recency_access"
@@ -611,7 +658,8 @@ function M.get_lru_buffer()
     return candidate_buf
 end
 
--- Enforce buffer limit by deleting LRU buffer if needed
+--- Enforce buffer limit by deleting LRU buffer if needed
+--- @return nil
 function M.enforce_buffer_limit()
     local config = M.get_config()
     if not config.max_open_buffers or config.max_open_buffers <= 0 then
@@ -647,7 +695,9 @@ function M.enforce_buffer_limit()
     end
 end
 
--- Validate config structure, returns error message or nil if valid
+--- Validate config structure
+--- @param config table Configuration table to validate
+--- @return string|nil Error message or nil if valid
 local function validate_config(config)
     if config.ui ~= nil and type(config.ui) ~= "table" then
         return '`ui` must be a table, e.g. `ui = { mode = "floating" }`'
@@ -666,6 +716,9 @@ local function validate_config(config)
     return nil
 end
 
+--- Initialize the plugin with the given configuration
+--- @param config table|nil User configuration table
+--- @return nil
 function M.setup(config)
     config = config or {}
 
