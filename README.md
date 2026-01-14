@@ -156,7 +156,7 @@ require("bento").setup({
     max_open_buffers = nil, -- Max buffers (nil = unlimited)
     buffer_deletion_metric = "frecency_access", -- Metric for buffer deletion (see below)
     buffer_notify_on_delete = true, -- Notify when deleting a buffer (false for silent deletion)
-    ordering_metric = "access", -- Buffer ordering: nil (arbitrary), "access", or "edit"
+    ordering_metric = "access", -- Buffer ordering: nil (arbitrary) | "access" | "edit" | "filename" | "directory"
     default_action = "open", -- Action when pressing label directly
 
     ui = {
@@ -212,7 +212,7 @@ require("bento").setup({
 | `max_open_buffers` | number/nil | `nil` | Maximum number of buffers to keep open (`nil` = unlimited) |
 | `buffer_deletion_metric` | string | `"frecency_access"` | Metric used to decide which buffer to delete when limit is reached (see below) |
 | `buffer_notify_on_delete` | boolean | `true` | Whether to create a notification via `vim.notify` when a buffer is deleted by the plugin |
-| `ordering_metric` | string/nil | `"access"` | Buffer ordering: `nil` (arbitrary), `"access"` (by last access time), or `"edit"` (by last edit time). Most recent first. |
+| `ordering_metric` | string/nil | `"access"` | Buffer ordering: `nil` (arbitrary), `"access"` (by last access time, most recent first), `"edit"` (by last edit time, most recent first), `"filename"` (by filename alphabetically) or `"directory"` (by relative path alphabetically) |
 | `default_action` | string | `"open"` | Default action mode when menu expands |
 | `highlights` | table | See below | Highlight groups for all UI elements |
 | `actions` | table | Built-in actions | Action definitions (see Actions section) |
