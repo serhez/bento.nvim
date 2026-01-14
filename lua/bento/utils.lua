@@ -13,7 +13,7 @@ end
 --- Split a path into components (directories + filename)
 --- @param path string File path
 --- @return string[] Path components
-local function split_path(path)
+function M.split_path(path)
     local components = {}
     for part in string.gmatch(path, "[^/\\]+") do
         table.insert(components, part)
@@ -54,7 +54,7 @@ function M.get_display_names(paths)
         else
             local path_components = {}
             for _, path in ipairs(group) do
-                path_components[path] = split_path(path)
+                path_components[path] = M.split_path(path)
             end
 
             for _, path in ipairs(group) do

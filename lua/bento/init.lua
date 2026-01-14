@@ -577,21 +577,83 @@ local function get_buffer_metric_value(buf_id, metric_type)
     return 0
 end
 
---- Get the ordering metric value for a buffer (used for sorting)
---- Returns higher values for more recently accessed/edited buffers
---- @param buf_id number Buffer ID
---- @return number Ordering value
-function M.get_ordering_value(buf_id)
-    local config = M.get_config()
-    local ordering_metric = config.ordering_metric
+--- Default stable sort comparator by buffer ID
+--- @param a {buf_id: number}
+--- @param b {buf_id: number}
+--- @return boolean
+local function sort_by_buf_id(a, b)
+    return a.buf_id < b.buf_id
+end
 
-    if not ordering_metric then
-        return 0
+--- Generic comparator using a value getter function
+--- Falls back to buf_id sort when values are equal
+--- @param a {buf_id: number}
+--- @param b {buf_id: number}
+--- @param value_getter fun(buf_id: number): any
+--- @param asc? boolean Sort ascending (default: false)
+--- @return boolean
+local function sort_by_value(a, b, value_getter, asc)
+    local a_val = value_getter(a.buf_id)
+    local b_val = value_getter(b.buf_id)
+    if a_val == b_val then
+        return sort_by_buf_id(a, b)
+    elseif (asc or false) then
+        return a_val < b_val
+    else
+        return a_val > b_val
     end
+end
 
-    local metrics = M.buffer_metrics[buf_id]
+--- Sort by filename
+--- @param a {buf_id: number}
+--- @param b {buf_id: number}
+--- @return boolean
+local function sort_buffers_by_filename(a, b)
+    --- Get the filename value for a buffer to compare by
+    --- @param buf_id number Buffer ID
+    --- @return string Filename
+    local function get_value(buf_id)
+        local buf_info = vim.fn.getbufinfo(buf_id)[1]
+        local filename = vim.fn.fnamemodify(buf_info.name or "", ":t")
+        return string.lower(filename)
+    end
+    return sort_by_value(a, b, get_value, true)
+end
 
-    if ordering_metric == "access" then
+--- Sort by directory components (path segments)
+--- @param a {buf_id: number}
+--- @param b {buf_id: number}
+--- @return boolean
+local function sort_buffers_by_directory(a, b)
+    --- Get the relative path segments list for a buffer
+    --- @param buf_id number Buffer ID
+    --- @return string[] Path segments
+    local function get_values(buf_id)
+        local buf_info = vim.fn.getbufinfo(buf_id)[1]
+        local rel_path = vim.fn.fnamemodify(buf_info.name or "", ":.")
+        return utils.split_path(string.lower(rel_path))
+    end
+    local a_vals = get_values(a.buf_id)
+    local b_vals = get_values(b.buf_id)
+    local min_length = math.min(#a_vals, #b_vals)
+    for i = 1, min_length do
+        if i == min_length or a_vals[i] ~= b_vals[i] then
+            return a_vals[i] < b_vals[i]
+        end
+    end
+end
+
+--- Sort by most recent access time
+--- @param a {buf_id: number}
+--- @param b {buf_id: number}
+--- @return boolean
+local function sort_buffers_by_access(a, b)
+    --- Get the ordering metric value for a buffer (used for sorting)
+    --- Returns higher values for more recently accessed buffers
+    --- @param buf_id number Buffer ID
+    --- @return number Ordering value
+    local function get_value(buf_id)
+        local metrics = M.buffer_metrics[buf_id]
         if metrics and #metrics.access_times > 0 then
             return metrics.access_times[#metrics.access_times]
         end
@@ -600,14 +662,46 @@ function M.get_ordering_value(buf_id)
             return buf_info.lastused or 0
         end
         return 0
-    elseif ordering_metric == "edit" then
+    end
+    return sort_by_value(a, b, get_value)
+end
+
+--- Sort by most recent edit time
+--- @param a {buf_id: number}
+--- @param b {buf_id: number}
+--- @return boolean
+local function sort_buffers_by_edit(a, b)
+    --- Get the ordering metric value for a buffer (used for sorting)
+    --- Returns higher values for more recently edited buffers
+    --- @param buf_id number Buffer ID
+    --- @return number Ordering value
+    local function get_value(buf_id)
+        local metrics = M.buffer_metrics[buf_id]
         if metrics and #metrics.edit_times > 0 then
             return metrics.edit_times[#metrics.edit_times]
         end
         return 0
     end
+    return sort_by_value(a, b, get_value)
+end
 
-    return 0
+--- Returns the appropriate sort comparator function based on config.ordering_metric
+--- @return fun(a: {buf_id: number}, b: {buf_id: number}): boolean
+function M.get_buffers_sort_function()
+    local config = M.get_config()
+    local ordering_metric = config.ordering_metric
+    if not ordering_metric then
+        return sort_by_buf_id
+    elseif ordering_metric == "access" then
+        return sort_buffers_by_access
+    elseif ordering_metric == "edit" then
+        return sort_buffers_by_edit
+    elseif ordering_metric == "filename" then
+        return sort_buffers_by_filename
+    elseif ordering_metric == "directory" then
+        return sort_buffers_by_directory
+    end
+    return sort_by_buf_id
 end
 
 --- Initialize marks for all valid buffers

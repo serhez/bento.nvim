@@ -201,14 +201,7 @@ local function update_marks()
 
     config = bento.get_config()
     if config.ordering_metric then
-        table.sort(marks, function(a, b)
-            local a_val = bento.get_ordering_value(a.buf_id)
-            local b_val = bento.get_ordering_value(b.buf_id)
-            if a_val == b_val then
-                return a.buf_id < b.buf_id
-            end
-            return a_val > b_val
-        end)
+        table.sort(marks, bento.get_buffers_sort_function())
     end
 end
 
