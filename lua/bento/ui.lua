@@ -474,7 +474,7 @@ local function create_window(height, width)
         height = height,
         row = row,
         col = col,
-        border = "none",
+        border = config.ui.floating.border or "none",
         focusable = false,
     })
 
