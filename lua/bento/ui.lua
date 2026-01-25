@@ -668,6 +668,7 @@ local function set_selection_keybindings(smart_labels)
         table.insert(selection_mode_keymaps, "]")
     end
 
+    save_keymap("n", "<ESC>")
     vim.keymap.set("n", "<ESC>", function()
         require("bento.ui").collapse_menu()
     end, { silent = true, desc = "Bento: Collapse menu" })
