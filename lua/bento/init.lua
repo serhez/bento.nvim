@@ -342,9 +342,9 @@ local function setup_autocmds()
         require("bento.ui").toggle_menu()
     end, { desc = "Toggle bento menu" })
 
-    vim.api.nvim_create_user_command("BentoToggleMinimalMenu", function()
-        require("bento.ui").toggle_minimal_menu()
-    end, { desc = "Toggle bento minimal menu rendering" })
+    vim.api.nvim_create_user_command("BentoCycleMinimalMenu", function()
+        require("bento.ui").cycle_minimal_menu()
+    end, { desc = "Cycle bento minimal menu rendering modes" })
 
     local function is_menu_buffer(bufnr)
         local ok, val = pcall(vim.api.nvim_buf_get_var, bufnr, "bento_menu")

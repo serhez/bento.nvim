@@ -1889,11 +1889,11 @@ function M.refresh_menu()
     end
 end
 
---- Toggle the minimal menu mode dynamically
+--- Cycle the minimal menu mode dynamically
 --- Cycles through: nil -> "dashed" -> "filename" -> "full"
 --- Note: This function is ignored when ui.mode = "tabline"
 --- @return nil
-function M.toggle_minimal_menu()
+function M.cycle_minimal_menu()
     M.setup_state()
 
     if is_tabline_ui() then

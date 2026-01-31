@@ -294,6 +294,7 @@ require("bento.ui").expand_menu()
 require("bento.ui").collapse_menu()
 require("bento.ui").close_menu()
 require("bento.ui").refresh_menu()
+require("bento.ui").cycle_minimal_menu() -- Cycle through minimal menu modes (nil -> "dashed" -> "filename" -> "full")
 
 -- Pagination
 -- Floating UI: requires max_rendered_buffers to be set
@@ -322,6 +323,7 @@ require("bento").close_all_buffers({ visible = false, locked = false, current = 
 
 -- Command
 :BentoToggle
+:BentoCycleMinimalMenu  -- Cycle through minimal menu modes (floating UI only)
 ```
 
 ## Session support
