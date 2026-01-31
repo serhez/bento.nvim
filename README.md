@@ -45,10 +45,10 @@ https://github.com/user-attachments/assets/2f254dc0-9607-4bd4-84c6-f5b431f02b4f
 ## Features
 
 - **Two UI modes**: Floating window (default) or tabline integration
-- **Extensible action system** with visual feedback (built-in actions: open, delete, split, lock)
+- **Extensible action system** with visual feedback (built-in action functions: open, delete, split, lock - registered via API)
 - **Customizable UI** with multiple collapsed states (dashes, filenames, full, or hidden) and placement options
 - **Smart one-char label assignment** based on filenames for quick buffer switching
-- **Last accessed/edited buffer quick switch** (press `;` twice)
+- **Last accessed buffer quick switch** with configurable keymap
 - **Buffer limit enforcement** with configurable deletion metrics (optional)
 - **Buffer locking** to protect important buffers from automatic deletion (persisted across sessions)
 - **Pagination** for large buffer lists (automatic when exceeding screen space, or configurable via `max_rendered_buffers`)
@@ -56,7 +56,7 @@ https://github.com/user-attachments/assets/2f254dc0-9607-4bd4-84c6-f5b431f02b4f
 
 ## Installation
 
-Neovim 0.9.0+ required. Works with any plugin manager:
+Neovim 0.9.0+ required. Install with your preferred plugin manager:
 
 ```lua
 -- lazy.nvim
@@ -66,20 +66,69 @@ Neovim 0.9.0+ required. Works with any plugin manager:
 use({ "serhez/bento.nvim", config = function() require("bento").setup() end })
 ```
 
-## Quick Start
+### Setting Up Keymaps
 
-Works out of the box with defaults. The main keymap is `;`:
+Bento does not register any keymaps or actions by default—you have full control. For a complete lazy.nvim setup:
 
-- `;` once → Open menu (collapsed, shows dashes)
-- `;` twice → Expand menu (shows labels and names) / Switch to last accessed buffer
-- Label key → Open that buffer
-- `<CR>` → Enter open mode, then select buffer
-- `<BS>` → Enter delete mode, then select buffer
-- `|` → Enter vertical split mode, then select buffer
-- `_` → Enter horizontal split mode, then select buffer
-- `*` → Toggle lock on selected buffer (protected from auto-deletion)
-- `[` / `]` → Previous / next page (floating: when `max_rendered_buffers` is set; tabline: when buffers exceed screen width)
-- `ESC` → Collapse back to dashes
+```lua
+{
+    "serhez/bento.nvim",
+    config = function()
+        require("bento").setup({
+            -- your config options here
+        })
+
+        local api = require("bento.api")
+
+        -- Register menu keymaps
+        api.register_expand_key("<YOUR_EXPAND_KEY>")  -- Open/expand menu
+        api.register_last_buffer_key("<YOUR_LB_KEY>") -- Label for last-accessed buffer
+        api.register_collapse_key("<Esc>")            -- Collapse/close menu
+        api.register_prev_page_key("[")               -- Previous page (pagination)
+        api.register_next_page_key("]")               -- Next page (pagination)
+
+        -- Register built-in actions (using built-in action functions)
+        -- with example keymaps and highlights
+        api.register_action("open", {
+            key = "<CR>",
+            action = api.actions.open,
+            hl = "DiagnosticVirtualTextHint",
+        })
+        api.register_action("delete", {
+            key = "<BS>",
+            action = api.actions.delete,
+            hl = "DiagnosticVirtualTextError",
+        })
+        api.register_action("vsplit", {
+            key = "|",
+            action = api.actions.vsplit,
+            hl = "DiagnosticVirtualTextInfo",
+        })
+        api.register_action("split", {
+            key = "_",
+            action = api.actions.split,
+            hl = "DiagnosticVirtualTextInfo",
+        })
+        api.register_action("lock", {
+            key = "*",
+            action = api.actions.lock,
+            hl = "DiagnosticVirtualTextWarn",
+        })
+
+        -- Set default action
+        api.set_default_action("open")
+    end,
+}
+```
+
+**That's it!** With this setup:
+- Press `<YOUR_EXPAND_KEY>` to open the expanded menu showing buffer labels and names
+- The last-accessed buffer will have `<YOUR_LB_KEY>` as its label (unless `config.map_last_accessed=true`, in which case a filename-based label will be assigned to it, but the `<YOUR_LB_KEY>` keymap can still be used to select it in addition to the assigned label)
+- **Pro-tip**: make `<YOUR_EXPAND_KEY>` and `<YOUR_LB_KEY>` to be the same; these functionalities do not conflict with each other, and you can achieve a fast switch-to-last-buffer action this way
+- Press `<BS>` then a label to delete that buffer; similarly you can perform other actions with your other registered keymaps
+- Press any label key directly to execute the default action on that buffer
+- Press `<Esc>` to close/collapse the menu
+- Press `[` and `]` to go to the previous and next pages (when pagination is needed)
 
 ## Visual States
 
@@ -99,7 +148,7 @@ Bento supports two UI modes: **floating window** (default) and **tabline**. Set 
 - **Bold** = Current buffer
 - Normal = Active in other windows
 - *Dimmed* = Inactive
-- `;` label = Last accessed buffer
+* Modified = Modified buffers (non-saved) can be assigned a special highlight too
 
 ### Tabline UI
 
@@ -120,26 +169,64 @@ The `ui.floating.minimal_menu` option is ignored when using tabline UI.
 
 ## Actions
 
-Actions change label colors for visual feedback. Built-in actions:
-- **Open** (`<CR>`): Opens selected buffer in current window
-- **Delete** (`<BS>`): Deletes selected buffer
-- **Vertical Split** (`|`): Opens selected buffer in a vertical split
-- **Horizontal Split** (`_`): Opens selected buffer in a horizontal split
-- **Lock** (`*`): Toggles lock on selected buffer (locked buffers are protected from automatic deletion)
+**Bento does not register any actions by default.** You must explicitly register each action via the API. This gives you full control over which actions are available and what keys they use.
+
+Built-in action functions are available at `api.actions.*`:
+- `api.actions.open` — Opens selected buffer in current window
+- `api.actions.delete` — Deletes selected buffer
+- `api.actions.vsplit` — Opens selected buffer in a vertical split
+- `api.actions.split` — Opens selected buffer in a horizontal split
+- `api.actions.lock` — Toggles lock on selected buffer (locked buffers are protected from automatic deletion)
+
+### Registering Actions
+
+Use `api.register_action(name, opts)` to register an action:
+
+```lua
+local api = require("bento.api")
+
+-- Register built-in actions with your chosen keys and highlights
+api.register_action("open", {
+    key = "<CR>",
+    action = api.actions.open,
+    hl = "DiagnosticVirtualTextHint", -- Optional: label highlight for this action
+})
+api.register_action("delete", {
+    key = "<BS>",
+    action = api.actions.delete,
+    hl = "DiagnosticVirtualTextError",
+})
+api.register_action("vsplit", {
+    key = "|",
+    action = api.actions.vsplit,
+    hl = "DiagnosticVirtualTextInfo",
+})
+api.register_action("split", {
+    key = "_",
+    action = api.actions.split,
+    hl = "DiagnosticVirtualTextInfo",
+})
+api.register_action("lock", {
+    key = "*",
+    action = api.actions.lock,
+    hl = "DiagnosticVirtualTextWarn",
+})
+
+-- Set the default action (executed when pressing a label key directly)
+api.set_default_action("open")
+```
 
 ### Custom Actions
 
+You can register custom actions with your own functions:
+
 ```lua
-require("bento").setup({
-    actions = {
-        git_stage = {
-            key = "g",
-            hl = "DiffAdd", -- Optional: custom label color
-            action = function(buf_id, buf_name)
-                vim.cmd("!git add " .. vim.fn.shellescape(buf_name))
-            end,
-        },
-    },
+api.register_action("git_stage", {
+    key = "g",
+    hl = "DiffAdd", -- Optional: custom label highlight
+    action = function(buf_id, buf_name)
+        vim.cmd("!git add " .. vim.fn.shellescape(buf_name))
+    end,
 })
 ```
 
@@ -151,14 +238,15 @@ All options with defaults:
 
 ```lua
 require("bento").setup({
-    main_keymap = ";", -- Main toggle/expand key
     lock_char = "🔒", -- Character shown before locked buffer names
     max_open_buffers = nil, -- Max buffers (nil = unlimited)
     buffer_deletion_metric = "frecency_access", -- Metric for buffer deletion (see below)
     buffer_notify_on_delete = true, -- Notify when deleting a buffer (false for silent deletion)
     ordering_metric = "access", -- Buffer ordering: nil (arbitrary), "access", or "edit"
-    default_action = "open", -- Action when pressing label directly
-    map_last_accessed = false, -- Whether to map a key to the last accessed buffer (besides main_keymap)
+
+    -- If true, last-accessed buffer gets a normal label instead of the registered keymap,
+    -- but the last-accessed keymap can still be used to select it in addition to the assigned label
+    map_last_accessed = false,
 
     ui = {
         mode = "floating", -- "floating" | "tabline"
@@ -186,21 +274,16 @@ require("bento").setup({
         inactive = "Comment", -- Inactive/hidden buffer filenames
         modified = "DiagnosticWarn", -- Modified/unsaved buffer filenames and dashes
         inactive_dash = "Comment", -- Inactive buffer dashes in collapsed state
-        previous = "Search", -- Label for previous buffer (main_keymap label)
-        label_open = "DiagnosticVirtualTextHint", -- Labels in open action mode
-        label_delete = "DiagnosticVirtualTextError", -- Labels in delete action mode
-        label_vsplit = "DiagnosticVirtualTextInfo", -- Labels in vertical split mode
-        label_split = "DiagnosticVirtualTextInfo", -- Labels in horizontal split mode
-        label_lock = "DiagnosticVirtualTextWarn", -- Labels in lock action mode
+        previous = "Search", -- Label for last-accessed buffer (when keymap is registered)
+        label = "DiagnosticVirtualTextHint", -- Default label highlight (actions can override via hl option)
         label_minimal = "Visual", -- Labels in collapsed "full" mode
         window_bg = "BentoNormal", -- Menu window background
         page_indicator = "Comment", -- Pagination indicators (● ○ ○ for floating, ❮/❯ for tabline)
         separator = "Normal", -- Separator between buffer components in tabline
     },
-
-    -- Custom actions
-    actions = {},
 })
+
+-- Actions and keymaps are registered via the API (see "Setting Up Keymaps" above)
 ```
 
 ### Options
@@ -209,16 +292,13 @@ require("bento").setup({
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `main_keymap` | string | `";"` | Primary key for menu toggle and expand |
 | `lock_char` | string | `"🔒"` | Character displayed before locked buffer names |
 | `max_open_buffers` | number/nil | `nil` | Maximum number of buffers to keep open (`nil` = unlimited) |
 | `buffer_deletion_metric` | string | `"frecency_access"` | Metric used to decide which buffer to delete when limit is reached (see below) |
 | `buffer_notify_on_delete` | boolean | `true` | Whether to create a notification via `vim.notify` when a buffer is deleted by the plugin |
 | `ordering_metric` | string/nil | `"access"` | Buffer ordering: `nil` (arbitrary), `"access"` (by last access time), or `"edit"` (by last edit time). Most recent first. |
-| `default_action` | string | `"open"` | Default action mode when menu expands |
-| `map_last_accessed` | boolean | `false` | If true, maps a key based on filename to the last accessed buffer (like all other buffers). If false it is only mapped to main_keymap. |
+| `map_last_accessed` | boolean | `false` | If `true`, the last-accessed buffer gets a normal filename-based label. If `false` (default), displays the registered keymap as its label. Only applies when a last-buffer keymap is registered. |
 | `highlights` | table | See below | Highlight groups for all UI elements |
-| `actions` | table | Built-in actions | Action definitions (see Actions section) |
 
 #### UI Options
 
@@ -271,12 +351,8 @@ All highlights are configurable under the `highlights` table:
 | `inactive` | `"Comment"` | Inactive/hidden buffer filenames |
 | `modified` | `"DiagnosticWarn"` | Modified/unsaved buffer filenames and dashes |
 | `inactive_dash` | `"Comment"` | Inactive buffer dashes in collapsed state |
-| `previous` | `"Search"` | Label for previous buffer (the `main_keymap` label) |
-| `label_open` | `"DiagnosticVirtualTextHint"` | Labels in open action mode |
-| `label_delete` | `"DiagnosticVirtualTextError"` | Labels in delete action mode |
-| `label_vsplit` | `"DiagnosticVirtualTextInfo"` | Labels in vertical split mode |
-| `label_split` | `"DiagnosticVirtualTextInfo"` | Labels in horizontal split mode |
-| `label_lock` | `"DiagnosticVirtualTextWarn"` | Labels in lock action mode |
+| `previous` | `"Search"` | Label for last-accessed buffer (when keymap is registered) |
+| `label` | `"DiagnosticVirtualTextHint"` | Default label highlight (actions can override via `hl` option) |
 | `label_minimal` | `"Visual"` | Labels in collapsed "full" mode |
 | `window_bg` | `"BentoNormal"` | Menu window background (transparent by default) |
 | `page_indicator` | `"Comment"` | Pagination indicator: `● ○ ○` in floating UI, `❮`/`❯` symbols in tabline UI |
@@ -286,37 +362,61 @@ All highlights are configurable under the `highlights` table:
 ## Lua API
 
 ```lua
+local api = require("bento.api")
+
+-- Keymap registration (recommended for setup)
+api.register_expand_key("<YOUR_EXPAND_KEY>")   -- Register key to open/expand menu
+api.register_last_buffer_key("<YOUR_LB_KEY>")   -- Register key as label for last-accessed buffer
+api.register_collapse_key("<Esc>")  -- Register key to collapse/close menu
+api.register_prev_page_key("[")     -- Register key for previous page
+api.register_next_page_key("]")     -- Register key for next page
+
+-- Action registration (required - no actions are registered by default)
+api.register_action("open", { key = "<CR>", action = api.actions.open, hl = "DiagnosticVirtualTextHint" })
+api.register_action("delete", { key = "<BS>", action = api.actions.delete, hl = "DiagnosticVirtualTextError" })
+api.set_default_action("open")        -- Set default action for direct label press
+
+-- Built-in action functions (use with register_action)
+api.actions.open      -- Opens buffer in current window
+api.actions.delete    -- Deletes buffer
+api.actions.vsplit    -- Opens buffer in vertical split
+api.actions.split     -- Opens buffer in horizontal split
+api.actions.lock      -- Toggles lock on buffer
+
 -- Menu control
-require("bento.ui").toggle_menu()
-require("bento.ui").expand_menu()
-require("bento.ui").collapse_menu()
-require("bento.ui").close_menu()
-require("bento.ui").refresh_menu()
+api.open_menu()           -- Open and expand the menu (convenience function)
+api.toggle_menu()         -- Toggle menu open/closed
+api.expand_menu()         -- Expand menu to show labels
+api.collapse_menu()       -- Collapse menu back to minimal state
+api.close_menu()          -- Close menu completely
+api.refresh_menu()        -- Refresh menu contents
+
+-- Buffer selection
+api.select_buffer(index)  -- Select buffer by index
 
 -- Pagination
 -- Floating UI: requires max_rendered_buffers to be set
 -- Tabline UI: automatic when buffers exceed screen width
-require("bento.ui").next_page()
-require("bento.ui").prev_page()
+api.next_page()
+api.prev_page()
 
--- Actions
-require("bento.ui").set_action_mode("delete")
-require("bento.ui").select_buffer(index)
+-- Action mode
+api.set_action_mode("delete")
 
 -- Buffer locking (protects buffers from automatic deletion)
 -- Lock state is persisted across sessions via :mksession
-require("bento").toggle_lock()      -- Toggle lock on current buffer
-require("bento").toggle_lock(bufnr) -- Toggle lock on specific buffer
-require("bento").is_locked()        -- Check if current buffer is locked
-require("bento").is_locked(bufnr)   -- Check if specific buffer is locked
+api.toggle_lock()      -- Toggle lock on current buffer
+api.toggle_lock(bufnr) -- Toggle lock on specific buffer
+api.is_locked()        -- Check if current buffer is locked
+api.is_locked(bufnr)   -- Check if specific buffer is locked
 
 -- Close all buffers (with optional exclusions)
 -- By default, closes ALL buffers. Pass false to exclude certain buffers.
-require("bento").close_all_buffers()                                                     -- Close ALL buffers
-require("bento").close_all_buffers({ visible = false })                                  -- Keep visible buffers open
-require("bento").close_all_buffers({ locked = false })                                   -- Keep locked buffers open
-require("bento").close_all_buffers({ current = false })                                  -- Keep current buffer open
-require("bento").close_all_buffers({ visible = false, locked = false, current = false }) -- Keep all protected
+api.close_all_buffers()                                                     -- Close ALL buffers
+api.close_all_buffers({ visible = false })                                  -- Keep visible buffers open
+api.close_all_buffers({ locked = false })                                   -- Keep locked buffers open
+api.close_all_buffers({ current = false })                                  -- Keep current buffer open
+api.close_all_buffers({ visible = false, locked = false, current = false }) -- Keep all protected
 
 -- Command
 :BentoToggle
@@ -335,9 +435,20 @@ require("bento").setup({
     ui = {
         mode = "tabline", -- Use tabline instead of floating window
     },
-    -- Tabline is always visible, showing buffers horizontally
-    -- Press main_keymap to expand and activate keymaps
 })
+
+-- Register keymaps and actions after setup
+local api = require("bento.api")
+api.register_expand_key("<YOUR_EXPAND_KEY>")
+api.register_last_buffer_key("<YOUR_LB_KEY>")
+api.register_collapse_key("<Esc>")
+api.register_prev_page_key("[")
+api.register_next_page_key("]")
+
+-- Register actions
+api.register_action("open", { key = "<CR>", action = api.actions.open })
+api.register_action("delete", { key = "<BS>", action = api.actions.delete })
+api.set_default_action("open")
 ```
 
 ### Custom Highlighting
@@ -351,25 +462,7 @@ require("bento").setup({
         modified = "WarningMsg",
         inactive_dash = "NonText",
         previous = "WarningMsg",
-        label_open = "IncSearch",
-        label_delete = "DiagnosticError",
-    },
-})
-```
-
-### Override Built-in Actions
-
-```lua
-require("bento").setup({
-    actions = {
-        open = {
-            key = "<C-o>", -- Change from default <CR>
-            hl = "String",
-            action = function(buf_id, buf_name)
-                vim.cmd("buffer " .. buf_id)
-                require("bento.ui").collapse_menu()
-            end,
-        },
+        label = "IncSearch", -- Default label highlight
     },
 })
 ```
@@ -377,23 +470,49 @@ require("bento").setup({
 ### Custom Action Examples
 
 ```lua
-actions = {
-    -- Git
-    git_stage = {
-        key = "g",
-        action = function(_, buf_name)
-            vim.cmd("!git add " .. vim.fn.shellescape(buf_name))
-        end,
-    },
+local api = require("bento.api")
 
-    -- Copy path
-    copy_path = {
-        key = "y",
-        action = function(_, buf_name)
-            vim.fn.setreg("+", buf_name)
-        end,
-    },
-}
+-- Git: Stage current buffer
+api.register_action("git_stage", {
+    key = "g",
+    action = function(_, buf_name)
+        vim.cmd("!git add " .. vim.fn.shellescape(buf_name))
+    end,
+})
+
+-- Copy path to clipboard
+api.register_action("copy_path", {
+    key = "y",
+    action = function(_, buf_name)
+        vim.fn.setreg("+", buf_name)
+    end,
+})
+```
+
+### Using the Lua API for Advanced Behavior
+
+For more complex behavior, use the Lua API functions directly instead of (or in addition to) the keymap registration functions:
+
+```lua
+-- Open menu automatically when creating a new split
+vim.api.nvim_create_autocmd("WinNew", {
+    callback = function()
+        vim.defer_fn(function()
+            require("bento.api").open_menu()
+        end, 50)
+    end,
+})
+
+-- Custom keymap with additional logic
+vim.keymap.set("n", "<YOUR_EXPAND_KEY>", function()
+    local api = require("bento.api")
+    -- Only open if we have more than one buffer
+    if #vim.fn.getbufinfo({ buflisted = 1 }) > 1 then
+        api.open_menu()
+    else
+        print("Only one buffer open")
+    end
+end, { desc = "Open Bento menu" })
 ```
 
 ## Acknowledgments & inspiration

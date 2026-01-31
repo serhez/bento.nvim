@@ -72,6 +72,42 @@ local tabline_end_idx = 1
 --- @type number
 local current_page = 1
 
+--- Registered key for expanding the menu (set via register_expand_key)
+--- @type string|nil
+local registered_expand_key = nil
+
+--- Registered key for the last-accessed buffer (set via register_last_buffer_key)
+--- @type string|nil
+local registered_last_buffer_key = nil
+
+--- Registered key for collapsing/closing the menu (set via register_collapse_key)
+--- @type string|nil
+local registered_collapse_key = nil
+
+--- Registered key for next page (set via register_next_page_key)
+--- @type string|nil
+local registered_next_page_key = nil
+
+--- Registered key for previous page (set via register_prev_page_key)
+--- @type string|nil
+local registered_prev_page_key = nil
+
+--- Track which warnings have been shown to avoid repetition
+--- @type table<string, boolean>
+local warnings_shown = {}
+
+--- Show a warning once per session
+--- @param key string Unique key for this warning
+--- @param message string Warning message to display
+--- @return nil
+local function warn_once(key, message)
+    if warnings_shown[key] then
+        return
+    end
+    warnings_shown[key] = true
+    vim.notify(message, vim.log.levels.WARN, { title = "Buffer Manager" })
+end
+
 --- Initialize UI state from configuration
 --- @return nil
 function M.setup_state()
@@ -291,6 +327,21 @@ local function generate_pagination_indicator(width)
         .. string.rep(" ", width - padding - indicator_width)
 end
 
+--- Get available keys for label assignment (filters out registered keys)
+--- @return string[]
+local function get_available_keys()
+    local available = {}
+    for _, key in ipairs(line_keys) do
+        if
+            key ~= registered_expand_key
+            and key ~= registered_last_buffer_key
+        then
+            table.insert(available, key)
+        end
+    end
+    return available
+end
+
 --- Assign smart labels to buffers
 --- @param buffers table[] List of buffer marks
 --- @param available_keys string[] List of available keys for labels
@@ -300,18 +351,20 @@ local function assign_smart_labels(buffers, available_keys)
     local used_labels = {}
     local last_accessed_buf = get_last_accessed_buffer()
 
-    -- Reserve main keymap for last accessed buffer
-    if not config.map_last_accessed and last_accessed_buf then
+    if
+        registered_last_buffer_key
+        and not config.map_last_accessed
+        and last_accessed_buf
+    then
         for i, mark in ipairs(buffers) do
             if mark.buf_id == last_accessed_buf then
-                label_assignment[i] = config.main_keymap
-                used_labels[config.main_keymap] = true
+                label_assignment[i] = registered_last_buffer_key
+                used_labels[registered_last_buffer_key] = true
                 break
             end
         end
     end
 
-    -- Build a mapping of first characters to buffer indices
     local char_to_buffers = {}
     for i, mark in ipairs(buffers) do
         if not label_assignment[i] then
@@ -625,8 +678,23 @@ end
 local function set_selection_keybindings(smart_labels)
     clear_selection_keymaps()
 
+    local last_accessed_buf = get_last_accessed_buffer()
+    local last_accessed_idx = nil
+
     for i, label in pairs(smart_labels) do
-        if label and label ~= " " and label ~= config.main_keymap then
+        local mark = marks[i]
+        if mark and mark.buf_id == last_accessed_buf then
+            last_accessed_idx = i
+        end
+
+        -- Skip empty labels
+        local is_expand_key = label == registered_expand_key
+        local is_last_buffer_label = label == registered_last_buffer_key
+        local should_skip = not label
+            or label == " "
+            or (is_expand_key and not is_last_buffer_label)
+
+        if not should_skip then
             save_keymap("n", label)
             vim.keymap.set("n", label, function()
                 require("bento.ui").select_buffer(i)
@@ -636,6 +704,25 @@ local function set_selection_keybindings(smart_labels)
             })
             table.insert(selection_mode_keymaps, label)
         end
+    end
+
+    if
+        registered_last_buffer_key
+        and config.map_last_accessed
+        and last_accessed_idx
+        and not vim.tbl_contains(
+            selection_mode_keymaps,
+            registered_last_buffer_key
+        )
+    then
+        save_keymap("n", registered_last_buffer_key)
+        vim.keymap.set("n", registered_last_buffer_key, function()
+            require("bento.ui").select_buffer(last_accessed_idx)
+        end, {
+            silent = true,
+            desc = "Bento: Select last-accessed buffer",
+        })
+        table.insert(selection_mode_keymaps, registered_last_buffer_key)
     end
 
     for action_name, action_config in pairs(config.actions) do
@@ -651,27 +738,33 @@ local function set_selection_keybindings(smart_labels)
         end
     end
 
-    -- Pagination keymaps (floating UI with pagination OR tabline UI when expanded)
     local _, _, needs_floating_pagination = get_pagination_info()
     local needs_tabline_pagination = is_tabline_ui() and #marks > 0
     if needs_floating_pagination or needs_tabline_pagination then
-        save_keymap("n", "[")
-        vim.keymap.set("n", "[", function()
-            require("bento.ui").prev_page()
-        end, { silent = true, desc = "Bento: Previous page" })
-        table.insert(selection_mode_keymaps, "[")
+        if registered_prev_page_key then
+            save_keymap("n", registered_prev_page_key)
+            vim.keymap.set("n", registered_prev_page_key, function()
+                require("bento.ui").prev_page()
+            end, { silent = true, desc = "Bento: Previous page" })
+            table.insert(selection_mode_keymaps, registered_prev_page_key)
+        end
 
-        save_keymap("n", "]")
-        vim.keymap.set("n", "]", function()
-            require("bento.ui").next_page()
-        end, { silent = true, desc = "Bento: Next page" })
-        table.insert(selection_mode_keymaps, "]")
+        if registered_next_page_key then
+            save_keymap("n", registered_next_page_key)
+            vim.keymap.set("n", registered_next_page_key, function()
+                require("bento.ui").next_page()
+            end, { silent = true, desc = "Bento: Next page" })
+            table.insert(selection_mode_keymaps, registered_next_page_key)
+        end
     end
 
-    vim.keymap.set("n", "<ESC>", function()
-        require("bento.ui").collapse_menu()
-    end, { silent = true, desc = "Bento: Collapse menu" })
-    table.insert(selection_mode_keymaps, "<ESC>")
+    if registered_collapse_key then
+        save_keymap("n", registered_collapse_key)
+        vim.keymap.set("n", registered_collapse_key, function()
+            require("bento.ui").collapse_menu()
+        end, { silent = true, desc = "Bento: Collapse menu" })
+        table.insert(selection_mode_keymaps, registered_collapse_key)
+    end
 end
 
 --- Display menu in dashed collapsed state
@@ -885,7 +978,7 @@ local function render_expanded(is_minimal_full)
 
     config = bento.get_config()
     update_marks()
-    local smart_labels = assign_smart_labels(marks, line_keys)
+    local smart_labels = assign_smart_labels(marks, get_available_keys())
     local visible_marks, start_idx = get_page_marks()
     local _, _, needs_pagination = get_pagination_info()
     local contents = {}
@@ -991,7 +1084,7 @@ local function render_expanded(is_minimal_full)
                 local action_name = current_action
                     or config.default_action
                     or "open"
-                label_hl = config.highlights.label_open
+                label_hl = config.highlights.label
 
                 if
                     config.actions[action_name]
@@ -1065,7 +1158,7 @@ end
 --- @return number[] Array of widths for each mark
 local function get_tabline_segment_widths()
     config = bento.get_config()
-    local smart_labels = assign_smart_labels(marks, line_keys)
+    local smart_labels = assign_smart_labels(marks, get_available_keys())
     local lock_char = config.lock_char or "🔒"
 
     local all_paths = {}
@@ -1161,7 +1254,7 @@ local function generate_tabline_string(is_minimal)
         return ""
     end
 
-    local smart_labels = assign_smart_labels(marks, line_keys)
+    local smart_labels = assign_smart_labels(marks, get_available_keys())
     smart_labels_cache = smart_labels
     local lock_char = config.lock_char or "🔒"
     local window_bg_hl = config.highlights.window_bg
@@ -1231,7 +1324,7 @@ local function generate_tabline_string(is_minimal)
             local action_name = current_action
                 or config.default_action
                 or "open"
-            label_hl = config.highlights.label_open
+            label_hl = config.highlights.label
             if
                 config.actions[action_name] and config.actions[action_name].hl
             then
@@ -1632,12 +1725,28 @@ end
 --- Expand menu to show labels and names
 --- @return nil
 function M.expand_menu()
+    -- Warn if no actions are registered
+    if vim.tbl_isempty(config.actions) then
+        warn_once(
+            "no_actions_registered",
+            "No actions registered. Call api.register_action() to register actions."
+        )
+    end
+
+    -- Warn if no collapse key is registered
+    if not registered_collapse_key then
+        warn_once(
+            "no_collapse_key",
+            "No collapse key registered. Call api.register_collapse_key() or use CursorMoved to collapse."
+        )
+    end
+
     if is_tabline_ui() then
         if not tabline_active then
             return
         end
         is_expanded = true
-        current_action = config.default_action or "open"
+        current_action = config.default_action
         render_tabline_expanded()
         return
     end
@@ -1648,7 +1757,7 @@ function M.expand_menu()
     end
 
     is_expanded = true
-    current_action = config.default_action or "open"
+    current_action = config.default_action
     render_expanded()
 end
 
@@ -1693,14 +1802,23 @@ function M.select_buffer(idx)
         return
     end
 
-    local action_to_use = current_action or "open"
+    local action_to_use = current_action or config.default_action
+    if not action_to_use then
+        warn_once(
+            "no_default_action",
+            "No default action set. Call api.set_default_action() after registering actions."
+        )
+        return
+    end
+
     local action_config = config.actions[action_to_use]
 
     if not action_config or not action_config.action then
-        vim.notify(
-            "Invalid action: " .. action_to_use,
-            vim.log.levels.ERROR,
-            { title = "Buffer Manager" }
+        warn_once(
+            "action_not_registered_" .. action_to_use,
+            "Action '"
+                .. action_to_use
+                .. "' is not registered. Call api.register_action() to register it."
         )
         return
     end
@@ -1757,52 +1875,6 @@ function M.set_action_mode(action_name)
         render_tabline_expanded()
     else
         render_expanded()
-    end
-end
-
---- Handle main keymap press
---- @return nil
-function M.handle_main_keymap()
-    M.setup_state()
-
-    if is_tabline_ui() then
-        if tabline_active then
-            if is_expanded then
-                local last_buf = get_last_accessed_buffer()
-                if last_buf then
-                    local buf_idx = get_buffer_index(last_buf)
-                    if buf_idx then
-                        M.select_buffer(buf_idx)
-                    end
-                end
-            else
-                M.expand_menu()
-            end
-        else
-            M.toggle_menu(true)
-            M.expand_menu()
-        end
-        return
-    end
-
-    -- Floating UI
-    if bento_win_id and vim.api.nvim_win_is_valid(bento_win_id) then
-        if is_expanded then
-            local last_buf = get_last_accessed_buffer()
-            if last_buf then
-                local buf_idx = get_buffer_index(last_buf)
-                if buf_idx then
-                    M.select_buffer(buf_idx)
-                end
-            end
-        else
-            M.expand_menu()
-        end
-    elseif not minimal_menu_active then
-        M.toggle_menu(true)
-        M.expand_menu()
-    else
-        M.toggle_menu()
     end
 end
 
@@ -1904,6 +1976,79 @@ function M.toggle_minimal_menu()
             M.close_menu()
         end
     end
+end
+
+--- Open and expand the menu (convenience function)
+--- @return nil
+function M.open_menu()
+    M.setup_state()
+    M.toggle_menu(true)
+    M.expand_menu()
+end
+
+--- Set the registered expand menu key (internal setter, use bento.api for registration)
+--- @param key string The key to set
+--- @return nil
+function M.set_registered_expand_key(key)
+    registered_expand_key = key
+end
+
+--- Set the registered last buffer key (internal setter, use bento.api for registration)
+--- @param key string The key to set
+--- @return nil
+function M.set_registered_last_buffer_key(key)
+    registered_last_buffer_key = key
+end
+
+--- Get the registered expand menu key
+--- @return string|nil
+function M.get_registered_expand_key()
+    return registered_expand_key
+end
+
+--- Get the registered last buffer key
+--- @return string|nil
+function M.get_registered_last_buffer_key()
+    return registered_last_buffer_key
+end
+
+--- Set the registered collapse menu key (internal setter, use bento.api for registration)
+--- @param key string The key to set
+--- @return nil
+function M.set_registered_collapse_key(key)
+    registered_collapse_key = key
+end
+
+--- Get the registered collapse menu key
+--- @return string|nil
+function M.get_registered_collapse_key()
+    return registered_collapse_key
+end
+
+--- Set the registered next page key (internal setter, use bento.api for registration)
+--- @param key string The key to set
+--- @return nil
+function M.set_registered_next_page_key(key)
+    registered_next_page_key = key
+end
+
+--- Get the registered next page key
+--- @return string|nil
+function M.get_registered_next_page_key()
+    return registered_next_page_key
+end
+
+--- Set the registered prev page key (internal setter, use bento.api for registration)
+--- @param key string The key to set
+--- @return nil
+function M.set_registered_prev_page_key(key)
+    registered_prev_page_key = key
+end
+
+--- Get the registered prev page key
+--- @return string|nil
+function M.get_registered_prev_page_key()
+    return registered_prev_page_key
 end
 
 return M

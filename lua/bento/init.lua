@@ -145,65 +145,9 @@ local function restore_buffer_metrics()
     end
 end
 
---- Built-in actions for buffer operations
+--- Built-in actions for buffer operations (registered via API)
 --- @type table<string, {key: string, hl: string, action: function}>
-M.actions = {
-    open = {
-        key = "<CR>",
-        hl = "DiagnosticVirtualTextHint",
-        action = function(_, buf_name)
-            local bufnr = vim.fn.bufnr(buf_name)
-            if bufnr ~= -1 then
-                vim.cmd("buffer " .. bufnr)
-            else
-                vim.cmd("edit " .. buf_name)
-            end
-            require("bento.ui").collapse_menu()
-        end,
-    },
-    delete = {
-        key = "<BS>",
-        hl = "DiagnosticVirtualTextError",
-        action = function(buf_id, _)
-            vim.api.nvim_buf_delete(buf_id, { force = false })
-            require("bento.ui").refresh_menu()
-        end,
-    },
-    vsplit = {
-        key = "|",
-        hl = "DiagnosticVirtualTextInfo",
-        action = function(_, buf_name)
-            local bufnr = vim.fn.bufnr(buf_name)
-            if bufnr ~= -1 then
-                vim.cmd("vsplit | buffer " .. bufnr)
-            else
-                vim.cmd("vsplit " .. buf_name)
-            end
-            require("bento.ui").collapse_menu()
-        end,
-    },
-    split = {
-        key = "_",
-        hl = "DiagnosticVirtualTextInfo",
-        action = function(_, buf_name)
-            local bufnr = vim.fn.bufnr(buf_name)
-            if bufnr ~= -1 then
-                vim.cmd("split | buffer " .. bufnr)
-            else
-                vim.cmd("split " .. buf_name)
-            end
-            require("bento.ui").collapse_menu()
-        end,
-    },
-    lock = {
-        key = "*",
-        hl = "DiagnosticVirtualTextWarn",
-        action = function(buf_id, _)
-            require("bento").toggle_lock(buf_id)
-            require("bento.ui").refresh_menu()
-        end,
-    },
-}
+M.actions = {}
 
 --- Keys available for buffer labels (a-z, A-Z, 0-9)
 --- @type string[]
@@ -272,20 +216,6 @@ M.line_keys = {
     "9",
 }
 
---- Set up the main keymap for toggling the buffer menu
---- @return nil
-local function setup_main_keymap()
-    local config = M.get_config()
-    if config.main_keymap and config.main_keymap ~= "" then
-        vim.keymap.set(
-            "n",
-            config.main_keymap,
-            "<Cmd>lua require('bento.ui').handle_main_keymap()<CR>",
-            { silent = true, desc = "Buffer Manager" }
-        )
-    end
-end
-
 --- Set up autocommands for buffer tracking and menu updates
 --- @return nil
 local function setup_autocmds()
@@ -300,6 +230,22 @@ local function setup_autocmds()
     local function is_menu_buffer(bufnr)
         local ok, val = pcall(vim.api.nvim_buf_get_var, bufnr, "bento_menu")
         return ok and val
+    end
+
+    --- Check if UI operations should be skipped to avoid conflicts with other plugins
+    --- @return boolean true if UI operations should be skipped
+    local function should_skip_ui_operations()
+        -- Skip if cmdline is active (noice, cmdline-window, etc.)
+        if vim.fn.getcmdwintype() ~= "" or vim.fn.getcmdtype() ~= "" then
+            return true
+        end
+        -- Skip if current window is a floating window (pickers, popups, etc.)
+        local win = vim.api.nvim_get_current_win()
+        local win_config = vim.api.nvim_win_get_config(win)
+        if win_config.relative ~= "" then
+            return true
+        end
+        return false
     end
 
     local augroup =
@@ -319,6 +265,9 @@ local function setup_autocmds()
                 then
                     return
                 end
+                if should_skip_ui_operations() then
+                    return
+                end
                 require("bento.ui").refresh_menu()
             end,
             desc = "Auto-refresh bento menu",
@@ -329,6 +278,9 @@ local function setup_autocmds()
         group = augroup,
         callback = function(args)
             if is_menu_buffer(args.buf) then
+                return
+            end
+            if should_skip_ui_operations() then
                 return
             end
             local win_id = vim.api.nvim_get_current_win()
@@ -344,6 +296,9 @@ local function setup_autocmds()
         group = augroup,
         callback = function(args)
             if is_menu_buffer(args.buf) then
+                return
+            end
+            if should_skip_ui_operations() then
                 return
             end
             require("bento.ui").collapse_menu()
@@ -363,6 +318,9 @@ local function setup_autocmds()
         group = augroup,
         callback = function(args)
             if is_menu_buffer(args.buf) then
+                return
+            end
+            if should_skip_ui_operations() then
                 return
             end
             require("bento").enforce_buffer_limit()
@@ -460,8 +418,8 @@ local function setup_autocmds()
     vim.api.nvim_create_autocmd("SessionLoadPost", {
         group = augroup,
         callback = function()
-            restore_locked_buffers()
-            restore_buffer_metrics()
+            pcall(restore_locked_buffers)
+            pcall(restore_buffer_metrics)
         end,
         desc = "Restore locked buffers and buffer metrics after session load",
     })
@@ -807,14 +765,13 @@ function M.setup(config)
     end
 
     local default_config = {
-        main_keymap = ";",
         lock_char = "🔒",
-        default_action = "open",
+        default_action = nil, -- Set via api.set_default_action()
         max_open_buffers = nil, -- nil (unlimited) or number
         buffer_deletion_metric = "frecency_access", -- "recency_access", "recency_edit", "frecency_access", "frecency_edit"
         buffer_notify_on_delete = true,
         ordering_metric = "access", -- nil (arbitrary) | "access" | "edit"
-        map_last_accessed = false,
+        map_last_accessed = false, -- If true, last-accessed buffer gets a normal label (keymap still works)
 
         ui = {
             mode = "floating", -- "floating" | "tabline"
@@ -842,11 +799,7 @@ function M.setup(config)
             modified = "DiagnosticWarn",
             inactive_dash = "Comment",
             previous = "Search",
-            label_open = "DiagnosticVirtualTextHint",
-            label_delete = "DiagnosticVirtualTextError",
-            label_vsplit = "DiagnosticVirtualTextInfo",
-            label_split = "DiagnosticVirtualTextInfo",
-            label_lock = "DiagnosticVirtualTextWarn",
+            label = "DiagnosticVirtualTextHint",
             label_minimal = "Visual",
             window_bg = "BentoNormal",
             page_indicator = "Comment",
@@ -856,19 +809,9 @@ function M.setup(config)
 
     BentoConfig = utils.merge_tables(default_config, config)
 
-    M.actions.open.hl = BentoConfig.highlights.label_open
-    M.actions.delete.hl = BentoConfig.highlights.label_delete
-    M.actions.vsplit.hl = BentoConfig.highlights.label_vsplit
-    M.actions.split.hl = BentoConfig.highlights.label_split
-    M.actions.lock.hl = BentoConfig.highlights.label_lock
-
     BentoConfig.actions = M.actions
 
-    if config.actions then
-        BentoConfig.actions = utils.merge_tables(M.actions, config.actions)
-    end
-
-    local reserved = { "<Esc>", BentoConfig.main_keymap, "[", "]" }
+    local reserved = {}
     for _, action_config in pairs(BentoConfig.actions) do
         if action_config.key then
             table.insert(reserved, action_config.key)
@@ -877,8 +820,6 @@ function M.setup(config)
     M.line_keys = vim.tbl_filter(function(key)
         return not vim.tbl_contains(reserved, key)
     end, M.line_keys)
-
-    setup_main_keymap()
 
     vim.defer_fn(function()
         require("bento").enforce_buffer_limit()
