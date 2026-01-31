@@ -52,7 +52,7 @@ https://github.com/user-attachments/assets/2f254dc0-9607-4bd4-84c6-f5b431f02b4f
 - **Buffer limit enforcement** with configurable deletion metrics (optional)
 - **Buffer locking** to protect important buffers from automatic deletion (persisted across sessions)
 - **Pagination** for large buffer lists (automatic when exceeding screen space, or configurable via `max_rendered_buffers`)
-- **Configurable buffer ordering** by access time or edit time (most recent first)
+- **Configurable buffer ordering** by access time, edit time, filename, or directory
 
 ## Installation
 
@@ -242,11 +242,9 @@ require("bento").setup({
     max_open_buffers = nil, -- Max buffers (nil = unlimited)
     buffer_deletion_metric = "frecency_access", -- Metric for buffer deletion (see below)
     buffer_notify_on_delete = true, -- Notify when deleting a buffer (false for silent deletion)
-    ordering_metric = "access", -- Buffer ordering: nil (arbitrary), "access", or "edit"
-
-    -- If true, last-accessed buffer gets a normal label instead of the registered keymap,
-    -- but the last-accessed keymap can still be used to select it in addition to the assigned label
-    map_last_accessed = false,
+    ordering_metric = "access", -- Buffer ordering: nil (insertion order), "access", "edit", "filename", or "directory"
+    locked_first = false, -- Sort locked buffers to the top
+    map_last_accessed = false, -- Whether to map a key to the last accessed buffer (besides main_keymap)
 
     ui = {
         mode = "floating", -- "floating" | "tabline"
@@ -296,8 +294,9 @@ require("bento").setup({
 | `max_open_buffers` | number/nil | `nil` | Maximum number of buffers to keep open (`nil` = unlimited) |
 | `buffer_deletion_metric` | string | `"frecency_access"` | Metric used to decide which buffer to delete when limit is reached (see below) |
 | `buffer_notify_on_delete` | boolean | `true` | Whether to create a notification via `vim.notify` when a buffer is deleted by the plugin |
-| `ordering_metric` | string/nil | `"access"` | Buffer ordering: `nil` (arbitrary), `"access"` (by last access time), or `"edit"` (by last edit time). Most recent first. |
-| `map_last_accessed` | boolean | `false` | If `true`, the last-accessed buffer gets a normal filename-based label. If `false` (default), displays the registered keymap as its label. Only applies when a last-buffer keymap is registered. |
+| `ordering_metric` | string/nil | `"access"` | Buffer ordering: `nil` (insertion order), `"access"` (by last access time, most recent first), `"edit"` (by last edit time, most recent first), `"filename"` (alphabetical by filename), or `"directory"` (alphabetical by full path). |
+| `locked_first` | boolean | `false` | If true, locked buffers are always sorted to the top of the list. |
+| `map_last_accessed` | boolean | `false` | If true, maps a key based on filename to the last accessed buffer (like all other buffers). If false it is only mapped to main_keymap. |
 | `highlights` | table | See below | Highlight groups for all UI elements |
 
 #### UI Options
@@ -390,6 +389,7 @@ api.expand_menu()         -- Expand menu to show labels
 api.collapse_menu()       -- Collapse menu back to minimal state
 api.close_menu()          -- Close menu completely
 api.refresh_menu()        -- Refresh menu contents
+api.cycle_minimal_menu()  -- Cycle through minimal menu modes (nil -> "dashed" -> "filename" -> "full")
 
 -- Buffer selection
 api.select_buffer(index)  -- Select buffer by index
@@ -420,6 +420,7 @@ api.close_all_buffers({ visible = false, locked = false, current = false }) -- K
 
 -- Command
 :BentoToggle
+:BentoCycleMinimalMenu  -- Cycle through minimal menu modes (floating UI only)
 ```
 
 ## Session support

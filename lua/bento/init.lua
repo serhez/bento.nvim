@@ -223,9 +223,9 @@ local function setup_autocmds()
         require("bento.ui").toggle_menu()
     end, { desc = "Toggle bento menu" })
 
-    vim.api.nvim_create_user_command("BentoToggleMinimalMenu", function()
-        require("bento.ui").toggle_minimal_menu()
-    end, { desc = "Toggle bento minimal menu rendering" })
+    vim.api.nvim_create_user_command("BentoCycleMinimalMenu", function()
+        require("bento.ui").cycle_minimal_menu()
+    end, { desc = "Cycle bento minimal menu rendering modes" })
 
     local function is_menu_buffer(bufnr)
         local ok, val = pcall(vim.api.nvim_buf_get_var, bufnr, "bento_menu")
@@ -612,8 +612,9 @@ end
 
 --- Get the ordering metric value for a buffer (used for sorting)
 --- Returns higher values for more recently accessed/edited buffers
+--- Returns strings for filename/directory ordering
 --- @param buf_id number Buffer ID
---- @return number Ordering value
+--- @return number|string Ordering value
 function M.get_ordering_value(buf_id)
     local config = M.get_config()
     local ordering_metric = config.ordering_metric
@@ -638,6 +639,12 @@ function M.get_ordering_value(buf_id)
             return metrics.edit_times[#metrics.edit_times]
         end
         return 0
+    elseif ordering_metric == "filename" then
+        local buf_name = vim.api.nvim_buf_get_name(buf_id)
+        return utils.get_file_name(buf_name):lower()
+    elseif ordering_metric == "directory" then
+        local buf_name = vim.api.nvim_buf_get_name(buf_id)
+        return buf_name:lower()
     end
 
     return 0
@@ -770,7 +777,8 @@ function M.setup(config)
         max_open_buffers = nil, -- nil (unlimited) or number
         buffer_deletion_metric = "frecency_access", -- "recency_access", "recency_edit", "frecency_access", "frecency_edit"
         buffer_notify_on_delete = true,
-        ordering_metric = "access", -- nil (arbitrary) | "access" | "edit"
+        ordering_metric = "access", -- nil | "access" | "edit" | "filename" | "directory"
+        locked_first = false, -- Sort locked buffers to the top
         map_last_accessed = false, -- If true, last-accessed buffer gets a normal label (keymap still works)
 
         ui = {
