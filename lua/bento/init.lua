@@ -215,7 +215,7 @@ M.actions = {
             end
 
             vim.api.nvim_buf_delete(buf_id, { force = false })
-            require("bento.ui").render_expanded()
+            require("bento.ui").refresh_menu()
         end,
     },
     vsplit = {
