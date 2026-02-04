@@ -840,9 +840,6 @@ local function validate_config(config)
         then
             return "`ui.floating` must be a table"
         end
-        if config.ui.floating and config.ui.floating.window ~= nil and type(config.ui.floating.window) ~= "table" then
-            return "`ui.floating.window` must be a table"
-        end
         if config.ui.tabline ~= nil and type(config.ui.tabline) ~= "table" then
             return "`ui.tabline` must be a table"
         end
@@ -880,16 +877,12 @@ function M.setup(config)
             mode = "floating", -- "floating" | "tabline"
             floating = {
                 position = "middle-right",
-                window = {
-                    style = "minimal",
-                    border = nil, -- nil uses `ui.floating.border`
-                    title = nil,
-                    title_pos = "center",
-                },
                 offset_x = 0,
                 offset_y = 0,
                 dash_char = "─",
                 border = "none", -- "rounded" | "single" | "double" | etc. (see :h winborder)
+                title = nil,
+                title_pos = "center", -- "left" | "center" | "right" (only applied when title is set)
                 label_padding = 1,
                 minimal_menu = nil, -- nil | "dashed" | "filename" | "full"
                 max_rendered_buffers = nil, -- nil (no limit) or number
