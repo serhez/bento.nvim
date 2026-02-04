@@ -232,7 +232,8 @@ require("bento").setup({
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
-| `position` | string | `"middle-right"` | Menu position: `"top-left"`, `"top-right"`, `"middle-left"`, `"middle-right"`, `"bottom-left"`, `"bottom-right"` |
+| `position` | string | `"middle-right"` | Menu position: `"top-left"`, `"top-center"`, `"top-right"`, `"middle-left"`, `"middle-center"`, `"middle-right"`, `"bottom-left"`, `"bottom-center"`, `"bottom-right"` (aliases: `"middle"`, `"center"`) |
+| `alignment` | string | `"right"` | Content alignment: `"right"` (labels right-aligned) or `"left"` (labels/shortcuts on the left, filenames left-aligned) |
 | `offset_x` | number | `0` | Horizontal offset from position |
 | `offset_y` | number | `0` | Vertical offset from position |
 | `dash_char` | string | `"─"` | Character for collapsed state lines |
