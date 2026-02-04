@@ -32,6 +32,42 @@ local is_expanded = false
 --- @type string[]
 local selection_mode_keymaps = {}
 
+local function floating_window_opts()
+    config = bento.get_config()
+    local floating = config.ui and config.ui.floating or {}
+    local w = floating.window or {}
+
+    local style = w.style
+    if style ~= "minimal" then
+        style = "minimal"
+    end
+
+    local border = w.border
+    if border == nil then
+        border = floating.border or "none"
+    end
+
+    local title = w.title
+    if title ~= nil and type(title) ~= "string" then
+        title = nil
+    end
+
+    local title_pos = w.title_pos
+    if title_pos ~= "left" and title_pos ~= "center" and title_pos ~= "right" then
+        title_pos = "center"
+    end
+    if title == nil then
+        title_pos = nil
+    end
+
+    return {
+        style = style,
+        border = border,
+        title = title,
+        title_pos = title_pos,
+    }
+end
+
 --- Original keymaps to restore when exiting selection mode
 --- @type table<string, table>
 local saved_keymaps = {}
@@ -501,16 +537,20 @@ end
 --- @return {bufnr: number, win_id: number}
 local function create_window(height, width)
     local row, col = calculate_position(height, width)
+    local winopts = floating_window_opts()
 
     local bufnr = vim.api.nvim_create_buf(false, true)
     local win_id = vim.api.nvim_open_win(bufnr, false, {
         relative = "editor",
-        style = "minimal",
+        style = winopts.style,
         width = width,
         height = height,
         row = row,
         col = col,
-        border = config.ui.floating.border or "none",
+        border = winopts.border,
+        title = winopts.title,
+        title_pos = winopts.title_pos,
+        
         focusable = false,
     })
 
@@ -539,6 +579,7 @@ local function update_window_size(width, height)
     end
 
     local row, col = calculate_position(height, width)
+    local winopts = floating_window_opts()
 
     pcall(vim.api.nvim_win_set_config, bento_win_id, {
         relative = "editor",
@@ -546,6 +587,9 @@ local function update_window_size(width, height)
         height = height,
         row = row,
         col = col,
+        border = winopts.border,
+        title = winopts.title,
+        title_pos = winopts.title_pos,
     })
 end
 
