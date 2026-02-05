@@ -405,6 +405,7 @@ actions = {
   local butils = require("bento.utils")
 
   -- Change from ~/home/yak/file.lua -> ~/h/y/file.lua
+  -- by default this is displayed as file.lua
   butils.get_display_names = function(paths)
     local display_names = {}
     for _, p in ipairs(paths) do
