@@ -400,6 +400,22 @@ actions = {
 }
 ```
 
+### Custom Display Names
+```lua
+  local butils = require("bento.utils")
+
+  -- Change from ~/home/yak/file.lua -> ~/h/y/file.lua
+  -- by default this is displayed as file.lua
+  butils.get_display_names = function(paths)
+    local display_names = {}
+    for _, p in ipairs(paths) do
+      display_names[p] = vim.fn.pathshorten(vim.fn.fnamemodify(p, ":~:."), 1)
+    end
+    return  display_names
+  end
+  require("bento").setup(opts)
+```
+
 ## Acknowledgments & inspiration
 
 - [buffer-sticks.nvim](https://github.com/ahkohd/buffer-sticks.nvim) by [`ahkohd`](https://github.com/ahkohd): this plugin inspired some of the ideas implemented in `bento` (e.g., the dashed menu). You should also check out this plugin, it's very good and it pursues solutions to many of the same problems.

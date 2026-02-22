@@ -476,6 +476,12 @@ local function calculate_position(height, width)
 
     local row, col
 
+    if position:match("center") then
+        row = math.floor((ui.height - height) / 2)
+        col = math.floor((ui.width - width) / 2)
+        return row + offset_y, col + offset_x
+    end
+
     -- Vertical positioning
     if position:match("^top") then
         row = 0
