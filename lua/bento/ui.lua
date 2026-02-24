@@ -219,7 +219,10 @@ local function update_marks()
             local a_val = bento.get_ordering_value(a.buf_id)
             local b_val = bento.get_ordering_value(b.buf_id)
 
-            if ordering_metric == "filename" or ordering_metric == "directory" then
+            if
+                ordering_metric == "filename"
+                or ordering_metric == "directory"
+            then
                 -- String comparison: ascending alphabetical
                 if a_val == b_val then
                     return a.buf_id < b.buf_id
@@ -476,11 +479,25 @@ local function calculate_position(height, width)
 
     local row, col
 
+    if position:match("^middle") then
+        row = math.floor((ui.height - height) / 2)
+        col = math.floor((ui.width - width) / 2)
+        return row + offset_x, col + offset_y
+    end
+
     -- Vertical positioning
     if position:match("^top") then
         row = 0
+        if position:match("middle$") then
+            col = math.floor((ui.width - width) / 2)
+            return row + offset_x, col + offset_y
+        end
     elseif position:match("^bottom") then
         row = ui.height - height
+        if position:match("middle$") then
+            col = math.floor((ui.width - width) / 2)
+            return row + offset_x, col + offset_y
+        end
     else
         row = math.floor((ui.height - height) / 2)
     end
