@@ -354,6 +354,14 @@ local function setup_autocmds()
     local augroup =
         vim.api.nvim_create_augroup("BentoRefresh", { clear = true })
 
+    vim.api.nvim_create_autocmd("BufFilePost", {
+        group = augroup,
+        callback = function()
+            require("bento.ui").refresh_menu()
+        end,
+        desc = "Refresh bento menu on buffer file rename",
+    })
+
     vim.api.nvim_create_autocmd(
         { "BufAdd", "BufDelete", "BufWipeout", "BufEnter", "WinEnter" },
         {
