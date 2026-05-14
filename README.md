@@ -8,6 +8,33 @@ A minimalist and efficient yet powerful buffer manager for Neovim. Designed to b
 
 </div>
 
+## v2 branch available
+
+Bento v2 is now available on the `feat/v2` branch. It is intended to
+replace `main` around July 2026, but it will keep moving until then while the
+API and migration path settle.
+
+To try it with `lazy.nvim`, pin the branch in your plugin spec:
+
+```lua
+{
+    "serhez/bento.nvim",
+    branch = "feat/v2",
+}
+```
+
+The main changes in v2 are:
+
+- API-first setup: bento no longer registers keymaps or actions by default.
+  You opt into menu keys, pagination keys, and actions through
+  `require("bento.api")`.
+- Built-in actions are still provided, but they are registered explicitly so
+  users can choose keys, highlights, and defaults.
+- Buffer ordering, locking, pagination, and minimal menu behavior have been
+  cleaned up around the public API.
+- Automatic buffer-limit deletion is safer around special buffers and file
+  explorer plugins such as Oil.
+
 ## Showcase
 
 <details>
