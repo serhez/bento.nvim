@@ -109,12 +109,45 @@ function M.get_display_names(paths)
     return display_names
 end
 
---- Check if a buffer is valid (listed and has a name)
+--- Safely get a buffer name
+--- @param buf_id number Buffer ID
+--- @return string|nil Buffer name, or nil if the buffer is invalid
+function M.get_buffer_name(buf_id)
+    if not vim.api.nvim_buf_is_valid(buf_id) then
+        return nil
+    end
+
+    local ok, buf_name = pcall(vim.api.nvim_buf_get_name, buf_id)
+    if not ok then
+        return nil
+    end
+    return buf_name
+end
+
+--- Check if a buffer name points at a regular file-like buffer
+--- @param buf_name string Buffer name
+--- @return boolean
+local function is_file_buffer_name(buf_name)
+    if type(buf_name) ~= "string" or buf_name == "" then
+        return false
+    end
+
+    if buf_name:match("^%a[%w+.-]*://") then
+        return false
+    end
+
+    return vim.fn.isdirectory(buf_name) ~= 1
+end
+
+--- Check if a buffer is valid (listed, named, and not a special buffer)
 --- @param buf_id number Buffer ID
 --- @param buf_name string Buffer name
 --- @return boolean
 function M.buffer_is_valid(buf_id, buf_name)
-    return vim.fn.buflisted(buf_id) == 1 and buf_name ~= ""
+    return vim.api.nvim_buf_is_valid(buf_id)
+        and vim.fn.buflisted(buf_id) == 1
+        and is_file_buffer_name(buf_name)
+        and vim.fn.getbufvar(buf_id, "&buftype") == ""
 end
 
 --- Recursively merge t2 into t1

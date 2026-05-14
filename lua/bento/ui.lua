@@ -220,8 +220,8 @@ local function update_marks()
 
     -- Add new buffers
     for _, buf in pairs(vim.api.nvim_list_bufs()) do
-        local bufname = vim.api.nvim_buf_get_name(buf)
-        if utils.buffer_is_valid(buf, bufname) then
+        local bufname = utils.get_buffer_name(buf)
+        if bufname and utils.buffer_is_valid(buf, bufname) then
             local found = false
             for _, mark in ipairs(marks) do
                 if mark.buf_id == buf then

@@ -37,11 +37,9 @@ end
 local function save_locked_buffers()
     local locked_paths = {}
     for buf_id, _ in pairs(M.locked_buffers) do
-        if vim.api.nvim_buf_is_valid(buf_id) then
-            local path = vim.api.nvim_buf_get_name(buf_id)
-            if path and path ~= "" then
-                table.insert(locked_paths, path)
-            end
+        local path = utils.get_buffer_name(buf_id)
+        if path and path ~= "" then
+            table.insert(locked_paths, path)
         end
     end
     vim.g.BentoLockedBuffers = vim.json.encode(locked_paths)
@@ -88,19 +86,17 @@ end
 local function save_buffer_metrics()
     local metrics_by_path = {}
     for buf_id, metrics in pairs(M.buffer_metrics) do
-        if vim.api.nvim_buf_is_valid(buf_id) and metrics then
-            local path = vim.api.nvim_buf_get_name(buf_id)
-            if path and path ~= "" then
-                local access_times = metrics.access_times
-                local edit_times = metrics.edit_times
-                local last_access = access_times and access_times[#access_times]
-                local last_edit = edit_times and edit_times[#edit_times]
-                if last_access or last_edit then
-                    metrics_by_path[path] = {
-                        a = last_access,
-                        e = last_edit,
-                    }
-                end
+        local path = utils.get_buffer_name(buf_id)
+        if path and path ~= "" and metrics then
+            local access_times = metrics.access_times
+            local edit_times = metrics.edit_times
+            local last_access = access_times and access_times[#access_times]
+            local last_edit = edit_times and edit_times[#edit_times]
+            if last_access or last_edit then
+                metrics_by_path[path] = {
+                    a = last_access,
+                    e = last_edit,
+                }
             end
         end
     end
@@ -248,8 +244,33 @@ local function setup_autocmds()
         return false
     end
 
+    local function get_buftype(bufnr)
+        local ok, buftype = pcall(vim.api.nvim_get_option_value, "buftype", {
+            buf = bufnr,
+        })
+        if not ok then
+            return nil
+        end
+        return buftype
+    end
+
     local augroup =
         vim.api.nvim_create_augroup("BentoRefresh", { clear = true })
+
+    local function schedule_buffer_limit_enforcement(bufnr)
+        local protected_buffers = {}
+        if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
+            protected_buffers[bufnr] = true
+        end
+
+        vim.schedule(function()
+            pcall(function()
+                require("bento").enforce_buffer_limit({
+                    protected_buffers = protected_buffers,
+                })
+            end)
+        end)
+    end
 
     vim.api.nvim_create_autocmd(
         { "BufAdd", "BufDelete", "BufWipeout", "BufEnter", "WinEnter" },
@@ -259,10 +280,11 @@ local function setup_autocmds()
                 if is_menu_buffer(args.buf) then
                     return
                 end
-                if
-                    vim.bo[args.buf].buftype ~= ""
-                    and vim.bo[args.buf].buftype ~= "terminal"
-                then
+                local buftype = get_buftype(args.buf)
+                if not buftype then
+                    return
+                end
+                if buftype ~= "" and buftype ~= "terminal" then
                     return
                 end
                 if should_skip_ui_operations() then
@@ -314,16 +336,20 @@ local function setup_autocmds()
         desc = "Refresh bento menu on window resize",
     })
 
-    vim.api.nvim_create_autocmd("BufAdd", {
+    vim.api.nvim_create_autocmd({ "BufAdd", "BufEnter" }, {
         group = augroup,
         callback = function(args)
             if is_menu_buffer(args.buf) then
                 return
             end
+            local buf_path = utils.get_buffer_name(args.buf)
+            if not buf_path or not utils.buffer_is_valid(args.buf, buf_path) then
+                return
+            end
             if should_skip_ui_operations() then
                 return
             end
-            require("bento").enforce_buffer_limit()
+            schedule_buffer_limit_enforcement(args.buf)
         end,
         desc = "Enforce maximum buffer limit",
     })
@@ -334,7 +360,7 @@ local function setup_autocmds()
             if is_menu_buffer(args.buf) then
                 return
             end
-            if vim.bo[args.buf].buftype ~= "" then
+            if get_buftype(args.buf) ~= "" then
                 return
             end
             require("bento").record_access(args.buf)
@@ -348,7 +374,7 @@ local function setup_autocmds()
             if is_menu_buffer(args.buf) then
                 return
             end
-            if vim.bo[args.buf].buftype ~= "" then
+            if get_buftype(args.buf) ~= "" then
                 return
             end
             require("bento").record_edit(args.buf)
@@ -371,10 +397,7 @@ local function setup_autocmds()
             if not locked_paths then
                 return
             end
-            local ok, buf_path = pcall(vim.api.nvim_buf_get_name, args.buf)
-            if not ok then
-                return
-            end
+            local buf_path = utils.get_buffer_name(args.buf)
             if buf_path and buf_path ~= "" then
                 for _, path in ipairs(locked_paths) do
                     if type(path) == "string" and path == buf_path then
@@ -394,10 +417,7 @@ local function setup_autocmds()
             if not saved_metrics then
                 return
             end
-            local ok, buf_path = pcall(vim.api.nvim_buf_get_name, args.buf)
-            if not ok then
-                return
-            end
+            local buf_path = utils.get_buffer_name(args.buf)
             if buf_path and buf_path ~= "" and saved_metrics[buf_path] then
                 local metrics = saved_metrics[buf_path]
                 if type(metrics) == "table" then
@@ -521,8 +541,8 @@ function M.close_all_buffers(opts)
     local closed_count = 0
 
     for _, buf_id in ipairs(vim.api.nvim_list_bufs()) do
-        local buf_name = vim.api.nvim_buf_get_name(buf_id)
-        if utils.buffer_is_valid(buf_id, buf_name) then
+        local buf_name = utils.get_buffer_name(buf_id)
+        if buf_name and utils.buffer_is_valid(buf_id, buf_name) then
             local should_close = true
 
             if not close_current and buf_id == current_buf then
@@ -640,10 +660,10 @@ function M.get_ordering_value(buf_id)
         end
         return 0
     elseif ordering_metric == "filename" then
-        local buf_name = vim.api.nvim_buf_get_name(buf_id)
+        local buf_name = utils.get_buffer_name(buf_id) or ""
         return utils.get_file_name(buf_name):lower()
     elseif ordering_metric == "directory" then
-        local buf_name = vim.api.nvim_buf_get_name(buf_id)
+        local buf_name = utils.get_buffer_name(buf_id) or ""
         return buf_name:lower()
     end
 
@@ -654,16 +674,19 @@ end
 --- @return nil
 function M.initialize_marks()
     for _, buf_id in ipairs(vim.api.nvim_list_bufs()) do
-        local buf_name = vim.api.nvim_buf_get_name(buf_id)
-        if utils.buffer_is_valid(buf_id, buf_name) then
+        local buf_name = utils.get_buffer_name(buf_id)
+        if buf_name and utils.buffer_is_valid(buf_id, buf_name) then
             table.insert(M.marks, { filename = buf_name, buf_id = buf_id })
         end
     end
 end
 
 --- Get buffer to delete based on configured metric (excluding current, visible, and locked buffers)
+--- @param opts table|nil Options table
 --- @return number|nil Buffer ID of the least recently used buffer, or nil if none found
-function M.get_lru_buffer()
+function M.get_lru_buffer(opts)
+    opts = opts or {}
+    local protected_buffers = opts.protected_buffers or {}
     local config = M.get_config()
     local metric_type = config.buffer_deletion_metric or "recency_access"
     local current_buf = vim.api.nvim_get_current_buf()
@@ -680,10 +703,12 @@ function M.get_lru_buffer()
     local candidate_score = math.huge
 
     for _, buf_id in ipairs(vim.api.nvim_list_bufs()) do
-        local buf_name = vim.api.nvim_buf_get_name(buf_id)
+        local buf_name = utils.get_buffer_name(buf_id)
         if
-            utils.buffer_is_valid(buf_id, buf_name)
+            buf_name
+            and utils.buffer_is_valid(buf_id, buf_name)
             and buf_id ~= current_buf
+            and not protected_buffers[buf_id]
             and not visible_bufs[buf_id]
             and not M.locked_buffers[buf_id]
         then
@@ -699,8 +724,11 @@ function M.get_lru_buffer()
 end
 
 --- Enforce buffer limit by deleting LRU buffer if needed
+--- @param opts table|nil Options table
 --- @return nil
-function M.enforce_buffer_limit()
+function M.enforce_buffer_limit(opts)
+    opts = opts or {}
+    local protected_buffers = vim.deepcopy(opts.protected_buffers or {})
     local config = M.get_config()
     if not config.max_open_buffers or config.max_open_buffers <= 0 then
         return
@@ -708,19 +736,21 @@ function M.enforce_buffer_limit()
 
     local valid_buffers = 0
     for _, buf_id in ipairs(vim.api.nvim_list_bufs()) do
-        local buf_name = vim.api.nvim_buf_get_name(buf_id)
-        if utils.buffer_is_valid(buf_id, buf_name) then
+        local buf_name = utils.get_buffer_name(buf_id)
+        if buf_name and utils.buffer_is_valid(buf_id, buf_name) then
             valid_buffers = valid_buffers + 1
         end
     end
 
     while valid_buffers > config.max_open_buffers do
-        local lru_buf = M.get_lru_buffer()
+        local lru_buf = M.get_lru_buffer({
+            protected_buffers = protected_buffers,
+        })
         if not lru_buf then
             break
         end
 
-        local buf_name = vim.api.nvim_buf_get_name(lru_buf)
+        local buf_name = utils.get_buffer_name(lru_buf) or ""
         local display_name = buf_name ~= "" and utils.get_file_name(buf_name)
             or "[No Name]"
         local ok = pcall(vim.api.nvim_buf_delete, lru_buf, { force = false })
@@ -731,7 +761,11 @@ function M.enforce_buffer_limit()
                 { title = "Buffer Manager" }
             )
         end
-        valid_buffers = valid_buffers - 1
+        if ok then
+            valid_buffers = valid_buffers - 1
+        else
+            protected_buffers[lru_buf] = true
+        end
     end
 end
 
