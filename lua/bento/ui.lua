@@ -32,6 +32,16 @@ local is_expanded = false
 --- @type string[]
 local selection_mode_keymaps = {}
 
+local function floating_alignment()
+    config = bento.get_config()
+    local floating = config.ui and config.ui.floating or {}
+    local a = floating.alignment or "right"
+    if a == "left" or a == "right" then
+        return a
+    end
+    return "right"
+end
+
 --- Original keymaps to restore when exiting selection mode
 --- @type table<string, table>
 local saved_keymaps = {}
@@ -462,7 +472,8 @@ local function assign_smart_labels(buffers, available_keys)
 end
 
 --- Calculate window position based on config.ui.floating.position
---- Supports: "top-left", "top-right", "middle-left", "middle-right", "bottom-left", "bottom-right"
+--- Supports: "top-left", "top-center", "top-right", "middle-left", "middle-center", "middle-right", "bottom-left", "bottom-center", "bottom-right"
+--- Aliases: "middle" and "center" => "middle-center"
 --- @param height number Window height
 --- @param width number Window width
 --- @return number row Row position
@@ -473,6 +484,10 @@ local function calculate_position(height, width)
     local position = floating.position or "middle-right"
     local offset_x = floating.offset_x or 0
     local offset_y = floating.offset_y or 0
+
+    if position == "middle" or position == "center" then
+        position = "middle-center"
+    end
 
     local row, col
 
@@ -488,8 +503,10 @@ local function calculate_position(height, width)
     -- Horizontal positioning
     if position:match("left$") then
         col = 0
-    else
+    elseif position:match("right$") then
         col = ui.width - width + 1
+    else
+        col = math.floor((ui.width - width) / 2)
     end
 
     return row + offset_y, col + offset_x
@@ -827,13 +844,20 @@ local function render_filename_collapsed()
     local total_width = padding + max_content_width + padding
     local total_height = #visible_marks
 
+    local align = floating_alignment()
+
     for i, data in ipairs(line_data) do
-        local left_space = max_content_width - data.content_width
-        local line = padding_str
-            .. string.rep(" ", left_space)
-            .. data.lock_prefix
-            .. data.display_name
-            .. padding_str
+        local line
+        if align == "left" then
+            line = padding_str .. data.lock_prefix .. data.display_name .. padding_str
+        else
+            local left_space = max_content_width - data.content_width
+            line = padding_str
+                .. string.rep(" ", left_space)
+                .. data.lock_prefix
+                .. data.display_name
+                .. padding_str
+        end
         contents[i] = line
     end
 
@@ -860,7 +884,7 @@ local function render_filename_collapsed()
         local is_modified = vim.api.nvim_buf_get_option(mark.buf_id, "modified")
         local data = line_data[i]
 
-        local left_space = max_content_width - data.content_width
+        local left_space = (align == "left") and 0 or (max_content_width - data.content_width)
         local lock_prefix_bytes = #data.lock_prefix
         local display_name_bytes = #data.display_name
         local display_name_start = padding + left_space + lock_prefix_bytes
@@ -929,6 +953,7 @@ local function render_expanded(is_minimal_full)
     local padding = config.ui.floating.label_padding or 1
     local padding_str = string.rep(" ", padding)
     local lock_char = config.lock_char or "🔒"
+    local align = floating_alignment()
 
     local all_paths = {}
     for _, mark in ipairs(marks) do
@@ -944,13 +969,22 @@ local function render_expanded(is_minimal_full)
             or utils.get_file_name(mark.filename)
         local is_locked = bento.is_locked(mark.buf_id)
         local lock_prefix = is_locked and (lock_char .. " ") or ""
-        -- Format: [lock_prefix][display_name] [space] [padding][label][padding]
-        local content_width = vim.fn.strwidth(lock_prefix)
-            + vim.fn.strwidth(display_name)
-            + 1
-            + padding
-            + #label
-            + padding
+        local content_width
+        if align == "left" then
+            -- Format: [padding][label][padding] [space] [lock_prefix][display_name] [padding]
+            content_width = padding + #label + padding + 1
+                + vim.fn.strwidth(lock_prefix)
+                + vim.fn.strwidth(display_name)
+                + padding
+        else
+            -- Format: [lock_prefix][display_name] [space] [padding][label][padding]
+            content_width = vim.fn.strwidth(lock_prefix)
+                + vim.fn.strwidth(display_name)
+                + 1
+                + padding
+                + #label
+                + padding
+        end
         max_content_width = math.max(max_content_width, content_width)
         table.insert(all_line_data, {
             label = label,
@@ -971,16 +1005,29 @@ local function render_expanded(is_minimal_full)
     local total_height = #visible_marks
 
     for i, data in ipairs(line_data) do
-        local left_space = max_content_width - data.content_width
-        -- Format: [padding][left_space][lock_prefix][display_name] [space] [padding][label][padding]
-        local line = padding_str
-            .. string.rep(" ", left_space)
-            .. data.lock_prefix
-            .. data.display_name
-            .. " "
-            .. padding_str
-            .. data.label
-            .. padding_str
+        local line
+        if align == "left" then
+            -- Format: [padding][padding][label][padding] [space] [lock_prefix][display_name] [padding]
+            line = padding_str
+                .. padding_str
+                .. data.label
+                .. padding_str
+                .. " "
+                .. data.lock_prefix
+                .. data.display_name
+                .. padding_str
+        else
+            local left_space = max_content_width - data.content_width
+            -- Format: [padding][left_space][lock_prefix][display_name] [space] [padding][label][padding]
+            line = padding_str
+                .. string.rep(" ", left_space)
+                .. data.lock_prefix
+                .. data.display_name
+                .. " "
+                .. padding_str
+                .. data.label
+                .. padding_str
+        end
         contents[i] = line
     end
 
@@ -1010,13 +1057,26 @@ local function render_expanded(is_minimal_full)
         local is_modified = vim.api.nvim_buf_get_option(mark.buf_id, "modified")
 
         if label and label ~= " " then
-            local left_space = max_content_width - data.content_width
             local lock_prefix_bytes = #data.lock_prefix
             local display_name_bytes = #data.display_name
-            local display_name_start = padding + left_space + lock_prefix_bytes
-            local display_name_end = display_name_start + display_name_bytes
-            local label_start = display_name_end + 1 + padding
-            local label_end = label_start + #label + padding
+            local display_name_start
+            local display_name_end
+            local label_start
+            local label_end
+
+            if align == "left" then
+                -- [padding][padding][label][padding] [space] [lock_prefix][display_name] [padding]
+                label_start = padding + padding
+                label_end = label_start + #label + padding
+                display_name_start = padding + padding + #label + padding + 1 + lock_prefix_bytes
+                display_name_end = display_name_start + display_name_bytes
+            else
+                local left_space = max_content_width - data.content_width
+                display_name_start = padding + left_space + lock_prefix_bytes
+                display_name_end = display_name_start + display_name_bytes
+                label_start = display_name_end + 1 + padding
+                label_end = label_start + #label + padding
+            end
 
             local label_hl
             local is_previous_buffer = mark.buf_id == last_accessed_buf

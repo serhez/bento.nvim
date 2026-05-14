@@ -877,6 +877,7 @@ function M.setup(config)
             mode = "floating", -- "floating" | "tabline"
             floating = {
                 position = "middle-right",
+                alignment = "right", -- "left" or "right". "left" renders labels/shortcuts at the left.
                 offset_x = 0,
                 offset_y = 0,
                 dash_char = "─",
