@@ -182,6 +182,14 @@ local function update_marks()
         end
     end
 
+    -- Sync filenames for existing marks (handles file renames)
+    for _, mark in ipairs(marks) do
+        local current_name = vim.api.nvim_buf_get_name(mark.buf_id)
+        if current_name ~= "" and current_name ~= mark.filename then
+            mark.filename = current_name
+        end
+    end
+
     -- Add new buffers
     for _, buf in pairs(vim.api.nvim_list_bufs()) do
         local bufname = vim.api.nvim_buf_get_name(buf)
