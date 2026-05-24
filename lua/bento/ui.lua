@@ -503,7 +503,7 @@ local function create_window(height, width)
     local row, col = calculate_position(height, width)
 
     local bufnr = vim.api.nvim_create_buf(false, true)
-    local win_id = vim.api.nvim_open_win(bufnr, false, {
+    local win_config = {
         relative = "editor",
         style = "minimal",
         width = width,
@@ -512,7 +512,13 @@ local function create_window(height, width)
         col = col,
         border = config.ui.floating.border or "none",
         focusable = false,
-    })
+        title = config.ui.floating.title,
+    }
+    if config.ui.floating.title then
+        win_config.title_pos = config.ui.floating.title_pos
+    end
+
+    local win_id = vim.api.nvim_open_win(bufnr, false, win_config)
 
     vim.api.nvim_buf_set_option(bufnr, "modifiable", false)
     vim.api.nvim_buf_set_option(bufnr, "buftype", "nofile")
@@ -540,13 +546,20 @@ local function update_window_size(width, height)
 
     local row, col = calculate_position(height, width)
 
-    pcall(vim.api.nvim_win_set_config, bento_win_id, {
+    local win_config = {
         relative = "editor",
         width = width,
         height = height,
         row = row,
         col = col,
-    })
+        border = config.ui.floating.border or "none",
+        title = config.ui.floating.title,
+    }
+    if config.ui.floating.title then
+        win_config.title_pos = config.ui.floating.title_pos
+    end
+
+    pcall(vim.api.nvim_win_set_config, bento_win_id, win_config)
 end
 
 --- Check if buffer is active (visible in any window)

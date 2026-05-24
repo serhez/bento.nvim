@@ -881,6 +881,8 @@ function M.setup(config)
                 offset_y = 0,
                 dash_char = "─",
                 border = "none", -- "rounded" | "single" | "double" | etc. (see :h winborder)
+                title = nil,
+                title_pos = "center", -- "left" | "center" | "right" (only applied when title is set)
                 label_padding = 1,
                 minimal_menu = nil, -- nil | "dashed" | "filename" | "full"
                 max_rendered_buffers = nil, -- nil (no limit) or number
