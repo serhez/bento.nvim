@@ -519,7 +519,6 @@ local function create_window(height, width)
     vim.api.nvim_buf_set_option(bufnr, "bufhidden", "wipe")
     vim.api.nvim_buf_set_option(bufnr, "swapfile", false)
     vim.api.nvim_win_set_option(win_id, "wrap", false)
-    vim.api.nvim_win_set_option(win_id, "winblend", 0)
     vim.api.nvim_win_set_option(
         win_id,
         "winhighlight",
