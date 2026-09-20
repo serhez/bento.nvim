@@ -37,11 +37,9 @@ end
 local function save_locked_buffers()
     local locked_paths = {}
     for buf_id, _ in pairs(M.locked_buffers) do
-        if vim.api.nvim_buf_is_valid(buf_id) then
-            local path = vim.api.nvim_buf_get_name(buf_id)
-            if path and path ~= "" then
-                table.insert(locked_paths, path)
-            end
+        local path = utils.get_buffer_name(buf_id)
+        if path and path ~= "" then
+            table.insert(locked_paths, path)
         end
     end
     vim.g.BentoLockedBuffers = vim.json.encode(locked_paths)
@@ -88,19 +86,17 @@ end
 local function save_buffer_metrics()
     local metrics_by_path = {}
     for buf_id, metrics in pairs(M.buffer_metrics) do
-        if vim.api.nvim_buf_is_valid(buf_id) and metrics then
-            local path = vim.api.nvim_buf_get_name(buf_id)
-            if path and path ~= "" then
-                local access_times = metrics.access_times
-                local edit_times = metrics.edit_times
-                local last_access = access_times and access_times[#access_times]
-                local last_edit = edit_times and edit_times[#edit_times]
-                if last_access or last_edit then
-                    metrics_by_path[path] = {
-                        a = last_access,
-                        e = last_edit,
-                    }
-                end
+        local path = utils.get_buffer_name(buf_id)
+        if path and path ~= "" and metrics then
+            local access_times = metrics.access_times
+            local edit_times = metrics.edit_times
+            local last_access = access_times and access_times[#access_times]
+            local last_edit = edit_times and edit_times[#edit_times]
+            if last_access or last_edit then
+                metrics_by_path[path] = {
+                    a = last_access,
+                    e = last_edit,
+                }
             end
         end
     end
@@ -145,114 +141,9 @@ local function restore_buffer_metrics()
     end
 end
 
---- Built-in actions for buffer operations
+--- Built-in actions for buffer operations (registered via API)
 --- @type table<string, {key: string, hl: string, action: function}>
-M.actions = {
-    open = {
-        key = "<CR>",
-        hl = "DiagnosticVirtualTextHint",
-        action = function(_, buf_name)
-            local bufnr = vim.fn.bufnr(buf_name)
-            if bufnr ~= -1 then
-                vim.cmd("buffer " .. bufnr)
-            else
-                vim.cmd("edit " .. buf_name)
-            end
-            require("bento.ui").collapse_menu()
-        end,
-    },
-    delete = {
-        key = "<BS>",
-        hl = "DiagnosticVirtualTextError",
-        action = function(buf_id, _)
-            -- Before deleting, ensure windows switch to a file buffer (not terminal)
-            local affected_windows = {}
-            for _, win in ipairs(vim.api.nvim_list_wins()) do
-                if
-                    vim.api.nvim_win_is_valid(win)
-                    and vim.api.nvim_win_get_buf(win) == buf_id
-                then
-                    local config = vim.api.nvim_win_get_config(win)
-                    if not config.relative or config.relative == "" then
-                        table.insert(affected_windows, win)
-                    end
-                end
-            end
-
-            -- Find a file buffer to switch to (not terminal)
-            if #affected_windows > 0 then
-                local next_buf = nil
-                for _, b in ipairs(vim.api.nvim_list_bufs()) do
-                    if b ~= buf_id and vim.api.nvim_buf_is_valid(b) then
-                        local buftype = vim.bo[b].buftype
-                        local buf_name = vim.api.nvim_buf_get_name(b)
-                        -- Must be normal file buffer, not terminal
-                        if
-                            buftype == ""
-                            and buf_name ~= ""
-                            and require("bento.utils").buffer_is_valid(
-                                b,
-                                buf_name
-                            )
-                        then
-                            next_buf = b
-                            break
-                        end
-                    end
-                end
-
-                -- Fallback: create new empty buffer if no file buffer exists
-                if not next_buf then
-                    next_buf = vim.api.nvim_create_buf(true, false)
-                end
-
-                -- Switch windows to next buffer before deletion
-                for _, win in ipairs(affected_windows) do
-                    if vim.api.nvim_win_is_valid(win) then
-                        pcall(vim.api.nvim_win_set_buf, win, next_buf)
-                    end
-                end
-            end
-
-            vim.api.nvim_buf_delete(buf_id, { force = false })
-            require("bento.ui").render_expanded()
-        end,
-    },
-    vsplit = {
-        key = "|",
-        hl = "DiagnosticVirtualTextInfo",
-        action = function(_, buf_name)
-            local bufnr = vim.fn.bufnr(buf_name)
-            if bufnr ~= -1 then
-                vim.cmd("vsplit | buffer " .. bufnr)
-            else
-                vim.cmd("vsplit " .. buf_name)
-            end
-            require("bento.ui").collapse_menu()
-        end,
-    },
-    split = {
-        key = "_",
-        hl = "DiagnosticVirtualTextInfo",
-        action = function(_, buf_name)
-            local bufnr = vim.fn.bufnr(buf_name)
-            if bufnr ~= -1 then
-                vim.cmd("split | buffer " .. bufnr)
-            else
-                vim.cmd("split " .. buf_name)
-            end
-            require("bento.ui").collapse_menu()
-        end,
-    },
-    lock = {
-        key = "*",
-        hl = "DiagnosticVirtualTextWarn",
-        action = function(buf_id, _)
-            require("bento").toggle_lock(buf_id)
-            require("bento.ui").refresh_menu()
-        end,
-    },
-}
+M.actions = {}
 
 --- Keys available for buffer labels (a-z, A-Z, 0-9)
 --- @type string[]
@@ -321,20 +212,6 @@ M.line_keys = {
     "9",
 }
 
---- Set up the main keymap for toggling the buffer menu
---- @return nil
-local function setup_main_keymap()
-    local config = M.get_config()
-    if config.main_keymap and config.main_keymap ~= "" then
-        vim.keymap.set(
-            "n",
-            config.main_keymap,
-            "<Cmd>lua require('bento.ui').handle_main_keymap()<CR>",
-            { silent = true, desc = "Buffer Manager" }
-        )
-    end
-end
-
 --- Set up autocommands for buffer tracking and menu updates
 --- @return nil
 local function setup_autocmds()
@@ -351,8 +228,49 @@ local function setup_autocmds()
         return ok and val
     end
 
+    --- Check if UI operations should be skipped to avoid conflicts with other plugins
+    --- @return boolean true if UI operations should be skipped
+    local function should_skip_ui_operations()
+        -- Skip if cmdline is active (noice, cmdline-window, etc.)
+        if vim.fn.getcmdwintype() ~= "" or vim.fn.getcmdtype() ~= "" then
+            return true
+        end
+        -- Skip if current window is a floating window (pickers, popups, etc.)
+        local win = vim.api.nvim_get_current_win()
+        local win_config = vim.api.nvim_win_get_config(win)
+        if win_config.relative ~= "" then
+            return true
+        end
+        return false
+    end
+
+    local function get_buftype(bufnr)
+        local ok, buftype = pcall(vim.api.nvim_get_option_value, "buftype", {
+            buf = bufnr,
+        })
+        if not ok then
+            return nil
+        end
+        return buftype
+    end
+
     local augroup =
         vim.api.nvim_create_augroup("BentoRefresh", { clear = true })
+
+    local function schedule_buffer_limit_enforcement(bufnr)
+        local protected_buffers = {}
+        if bufnr and vim.api.nvim_buf_is_valid(bufnr) then
+            protected_buffers[bufnr] = true
+        end
+
+        vim.schedule(function()
+            pcall(function()
+                require("bento").enforce_buffer_limit({
+                    protected_buffers = protected_buffers,
+                })
+            end)
+        end)
+    end
 
     vim.api.nvim_create_autocmd(
         { "BufAdd", "BufDelete", "BufWipeout", "BufEnter", "WinEnter" },
@@ -362,10 +280,14 @@ local function setup_autocmds()
                 if is_menu_buffer(args.buf) then
                     return
                 end
-                if
-                    vim.bo[args.buf].buftype ~= ""
-                    and vim.bo[args.buf].buftype ~= "terminal"
-                then
+                local buftype = get_buftype(args.buf)
+                if not buftype then
+                    return
+                end
+                if buftype ~= "" and buftype ~= "terminal" then
+                    return
+                end
+                if should_skip_ui_operations() then
                     return
                 end
                 require("bento.ui").refresh_menu()
@@ -378,6 +300,9 @@ local function setup_autocmds()
         group = augroup,
         callback = function(args)
             if is_menu_buffer(args.buf) then
+                return
+            end
+            if should_skip_ui_operations() then
                 return
             end
             local win_id = vim.api.nvim_get_current_win()
@@ -395,6 +320,9 @@ local function setup_autocmds()
             if is_menu_buffer(args.buf) then
                 return
             end
+            if should_skip_ui_operations() then
+                return
+            end
             require("bento.ui").collapse_menu()
         end,
         desc = "Collapse bento menu on cursor move",
@@ -408,13 +336,20 @@ local function setup_autocmds()
         desc = "Refresh bento menu on window resize",
     })
 
-    vim.api.nvim_create_autocmd("BufAdd", {
+    vim.api.nvim_create_autocmd({ "BufAdd", "BufEnter" }, {
         group = augroup,
         callback = function(args)
             if is_menu_buffer(args.buf) then
                 return
             end
-            require("bento").enforce_buffer_limit()
+            local buf_path = utils.get_buffer_name(args.buf)
+            if not buf_path or not utils.buffer_is_valid(args.buf, buf_path) then
+                return
+            end
+            if should_skip_ui_operations() then
+                return
+            end
+            schedule_buffer_limit_enforcement(args.buf)
         end,
         desc = "Enforce maximum buffer limit",
     })
@@ -425,7 +360,7 @@ local function setup_autocmds()
             if is_menu_buffer(args.buf) then
                 return
             end
-            if vim.bo[args.buf].buftype ~= "" then
+            if get_buftype(args.buf) ~= "" then
                 return
             end
             require("bento").record_access(args.buf)
@@ -439,7 +374,7 @@ local function setup_autocmds()
             if is_menu_buffer(args.buf) then
                 return
             end
-            if vim.bo[args.buf].buftype ~= "" then
+            if get_buftype(args.buf) ~= "" then
                 return
             end
             require("bento").record_edit(args.buf)
@@ -462,10 +397,7 @@ local function setup_autocmds()
             if not locked_paths then
                 return
             end
-            local ok, buf_path = pcall(vim.api.nvim_buf_get_name, args.buf)
-            if not ok then
-                return
-            end
+            local buf_path = utils.get_buffer_name(args.buf)
             if buf_path and buf_path ~= "" then
                 for _, path in ipairs(locked_paths) do
                     if type(path) == "string" and path == buf_path then
@@ -485,10 +417,7 @@ local function setup_autocmds()
             if not saved_metrics then
                 return
             end
-            local ok, buf_path = pcall(vim.api.nvim_buf_get_name, args.buf)
-            if not ok then
-                return
-            end
+            local buf_path = utils.get_buffer_name(args.buf)
             if buf_path and buf_path ~= "" and saved_metrics[buf_path] then
                 local metrics = saved_metrics[buf_path]
                 if type(metrics) == "table" then
@@ -509,8 +438,8 @@ local function setup_autocmds()
     vim.api.nvim_create_autocmd("SessionLoadPost", {
         group = augroup,
         callback = function()
-            restore_locked_buffers()
-            restore_buffer_metrics()
+            pcall(restore_locked_buffers)
+            pcall(restore_buffer_metrics)
         end,
         desc = "Restore locked buffers and buffer metrics after session load",
     })
@@ -612,8 +541,8 @@ function M.close_all_buffers(opts)
     local closed_count = 0
 
     for _, buf_id in ipairs(vim.api.nvim_list_bufs()) do
-        local buf_name = vim.api.nvim_buf_get_name(buf_id)
-        if utils.buffer_is_valid(buf_id, buf_name) then
+        local buf_name = utils.get_buffer_name(buf_id)
+        if buf_name and utils.buffer_is_valid(buf_id, buf_name) then
             local should_close = true
 
             if not close_current and buf_id == current_buf then
@@ -731,10 +660,10 @@ function M.get_ordering_value(buf_id)
         end
         return 0
     elseif ordering_metric == "filename" then
-        local buf_name = vim.api.nvim_buf_get_name(buf_id)
+        local buf_name = utils.get_buffer_name(buf_id) or ""
         return utils.get_file_name(buf_name):lower()
     elseif ordering_metric == "directory" then
-        local buf_name = vim.api.nvim_buf_get_name(buf_id)
+        local buf_name = utils.get_buffer_name(buf_id) or ""
         return buf_name:lower()
     end
 
@@ -745,16 +674,19 @@ end
 --- @return nil
 function M.initialize_marks()
     for _, buf_id in ipairs(vim.api.nvim_list_bufs()) do
-        local buf_name = vim.api.nvim_buf_get_name(buf_id)
-        if utils.buffer_is_valid(buf_id, buf_name) then
+        local buf_name = utils.get_buffer_name(buf_id)
+        if buf_name and utils.buffer_is_valid(buf_id, buf_name) then
             table.insert(M.marks, { filename = buf_name, buf_id = buf_id })
         end
     end
 end
 
 --- Get buffer to delete based on configured metric (excluding current, visible, and locked buffers)
+--- @param opts table|nil Options table
 --- @return number|nil Buffer ID of the least recently used buffer, or nil if none found
-function M.get_lru_buffer()
+function M.get_lru_buffer(opts)
+    opts = opts or {}
+    local protected_buffers = opts.protected_buffers or {}
     local config = M.get_config()
     local metric_type = config.buffer_deletion_metric or "recency_access"
     local current_buf = vim.api.nvim_get_current_buf()
@@ -771,10 +703,12 @@ function M.get_lru_buffer()
     local candidate_score = math.huge
 
     for _, buf_id in ipairs(vim.api.nvim_list_bufs()) do
-        local buf_name = vim.api.nvim_buf_get_name(buf_id)
+        local buf_name = utils.get_buffer_name(buf_id)
         if
-            utils.buffer_is_valid(buf_id, buf_name)
+            buf_name
+            and utils.buffer_is_valid(buf_id, buf_name)
             and buf_id ~= current_buf
+            and not protected_buffers[buf_id]
             and not visible_bufs[buf_id]
             and not M.locked_buffers[buf_id]
         then
@@ -790,8 +724,11 @@ function M.get_lru_buffer()
 end
 
 --- Enforce buffer limit by deleting LRU buffer if needed
+--- @param opts table|nil Options table
 --- @return nil
-function M.enforce_buffer_limit()
+function M.enforce_buffer_limit(opts)
+    opts = opts or {}
+    local protected_buffers = vim.deepcopy(opts.protected_buffers or {})
     local config = M.get_config()
     if not config.max_open_buffers or config.max_open_buffers <= 0 then
         return
@@ -799,19 +736,21 @@ function M.enforce_buffer_limit()
 
     local valid_buffers = 0
     for _, buf_id in ipairs(vim.api.nvim_list_bufs()) do
-        local buf_name = vim.api.nvim_buf_get_name(buf_id)
-        if utils.buffer_is_valid(buf_id, buf_name) then
+        local buf_name = utils.get_buffer_name(buf_id)
+        if buf_name and utils.buffer_is_valid(buf_id, buf_name) then
             valid_buffers = valid_buffers + 1
         end
     end
 
     while valid_buffers > config.max_open_buffers do
-        local lru_buf = M.get_lru_buffer()
+        local lru_buf = M.get_lru_buffer({
+            protected_buffers = protected_buffers,
+        })
         if not lru_buf then
             break
         end
 
-        local buf_name = vim.api.nvim_buf_get_name(lru_buf)
+        local buf_name = utils.get_buffer_name(lru_buf) or ""
         local display_name = buf_name ~= "" and utils.get_file_name(buf_name)
             or "[No Name]"
         local ok = pcall(vim.api.nvim_buf_delete, lru_buf, { force = false })
@@ -822,7 +761,11 @@ function M.enforce_buffer_limit()
                 { title = "Buffer Manager" }
             )
         end
-        valid_buffers = valid_buffers - 1
+        if ok then
+            valid_buffers = valid_buffers - 1
+        else
+            protected_buffers[lru_buf] = true
+        end
     end
 end
 
@@ -863,15 +806,14 @@ function M.setup(config)
     end
 
     local default_config = {
-        main_keymap = ";",
         lock_char = "🔒",
-        default_action = "open",
+        default_action = nil, -- Set via api.set_default_action()
         max_open_buffers = nil, -- nil (unlimited) or number
         buffer_deletion_metric = "frecency_access", -- "recency_access", "recency_edit", "frecency_access", "frecency_edit"
         buffer_notify_on_delete = true,
         ordering_metric = "access", -- nil | "access" | "edit" | "filename" | "directory"
         locked_first = false, -- Sort locked buffers to the top
-        map_last_accessed = false,
+        map_last_accessed = false, -- If true, last-accessed buffer gets a normal label (keymap still works)
 
         ui = {
             mode = "floating", -- "floating" | "tabline"
@@ -899,11 +841,7 @@ function M.setup(config)
             modified = "DiagnosticWarn",
             inactive_dash = "Comment",
             previous = "Search",
-            label_open = "DiagnosticVirtualTextHint",
-            label_delete = "DiagnosticVirtualTextError",
-            label_vsplit = "DiagnosticVirtualTextInfo",
-            label_split = "DiagnosticVirtualTextInfo",
-            label_lock = "DiagnosticVirtualTextWarn",
+            label = "DiagnosticVirtualTextHint",
             label_minimal = "Visual",
             window_bg = "BentoNormal",
             page_indicator = "Comment",
@@ -913,19 +851,9 @@ function M.setup(config)
 
     BentoConfig = utils.merge_tables(default_config, config)
 
-    M.actions.open.hl = BentoConfig.highlights.label_open
-    M.actions.delete.hl = BentoConfig.highlights.label_delete
-    M.actions.vsplit.hl = BentoConfig.highlights.label_vsplit
-    M.actions.split.hl = BentoConfig.highlights.label_split
-    M.actions.lock.hl = BentoConfig.highlights.label_lock
-
     BentoConfig.actions = M.actions
 
-    if config.actions then
-        BentoConfig.actions = utils.merge_tables(M.actions, config.actions)
-    end
-
-    local reserved = { "<Esc>", BentoConfig.main_keymap, "[", "]" }
+    local reserved = {}
     for _, action_config in pairs(BentoConfig.actions) do
         if action_config.key then
             table.insert(reserved, action_config.key)
@@ -934,8 +862,6 @@ function M.setup(config)
     M.line_keys = vim.tbl_filter(function(key)
         return not vim.tbl_contains(reserved, key)
     end, M.line_keys)
-
-    setup_main_keymap()
 
     vim.defer_fn(function()
         require("bento").enforce_buffer_limit()
