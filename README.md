@@ -130,6 +130,58 @@ Bento does not register any keymaps or actions by default—you have full contro
 - Press `<Esc>` to close/collapse the menu
 - Press `[` and `]` to go to the previous and next pages (when pagination is needed)
 
+## Migrating from v1
+
+v1 registered a keymap (`;`) and a full set of actions during `setup()`. v2
+registers nothing. `setup()` now only configures behavior and appearance; every
+key and every action is opted into through `require("bento.api")`.
+
+A v1 config carried over unchanged will load without errors but show no menu
+and answer no keys, so the registrations shown in
+[Setting Up Keymaps](#setting-up-keymaps) are required, not optional.
+
+### Options that became API calls
+
+| v1 option | v2 equivalent |
+|-----------|---------------|
+| `main_keymap = ";"` | `api.register_expand_key(";")`, plus `api.register_last_buffer_key(";")` for the last-buffer label |
+| `<Esc>` (implicit) | `api.register_collapse_key("<Esc>")` |
+| `[` and `]` (implicit) | `api.register_prev_page_key("[")` and `api.register_next_page_key("]")` |
+| `default_action = "open"` | `api.set_default_action("open")` |
+| `actions = { ... }` | One `api.register_action(name, opts)` call per action |
+
+The built-in actions still ship with the plugin, now as plain functions on
+`api.actions` (`open`, `delete`, `vsplit`, `split`, `lock`) that you bind to
+keys of your choosing.
+
+### Highlights that changed
+
+The per-action label highlights (`label_open`, `label_delete`, `label_vsplit`,
+`label_split`, `label_lock`) collapse into a single `label` default. Give an
+action its own color through the `hl` field when registering it:
+
+```lua
+api.register_action("delete", {
+    key = "<BS>",
+    action = api.actions.delete,
+    hl = "DiagnosticVirtualTextError",
+})
+```
+
+Every other option in [Configuration](#configuration) keeps its v1 name and
+meaning.
+
+### Staying on v1
+
+If you are not ready to migrate, pin the last v1 release:
+
+```lua
+{
+    "serhez/bento.nvim",
+    tag = "v1.0.0",
+}
+```
+
 ## Visual States
 
 Bento supports two UI modes: **floating window** (default) and **tabline**. Set via `ui.mode = "floating"` or `ui.mode = "tabline"`.
@@ -244,7 +296,7 @@ require("bento").setup({
     buffer_notify_on_delete = true, -- Notify when deleting a buffer (false for silent deletion)
     ordering_metric = "access", -- Buffer ordering: nil (insertion order), "access", "edit", "filename", or "directory"
     locked_first = false, -- Sort locked buffers to the top
-    map_last_accessed = false, -- Whether to map a key to the last accessed buffer (besides main_keymap)
+    map_last_accessed = false, -- If true, the last-accessed buffer also gets a filename-based label
 
     ui = {
         mode = "floating", -- "floating" | "tabline"
@@ -296,7 +348,7 @@ require("bento").setup({
 | `buffer_notify_on_delete` | boolean | `true` | Whether to create a notification via `vim.notify` when a buffer is deleted by the plugin |
 | `ordering_metric` | string/nil | `"access"` | Buffer ordering: `nil` (insertion order), `"access"` (by last access time, most recent first), `"edit"` (by last edit time, most recent first), `"filename"` (alphabetical by filename), or `"directory"` (alphabetical by full path). |
 | `locked_first` | boolean | `false` | If true, locked buffers are always sorted to the top of the list. |
-| `map_last_accessed` | boolean | `false` | If true, maps a key based on filename to the last accessed buffer (like all other buffers). If false it is only mapped to main_keymap. |
+| `map_last_accessed` | boolean | `false` | If true, the last-accessed buffer also gets a filename-based label like every other buffer. If false, it is reachable only through the key registered with `api.register_last_buffer_key()`. |
 | `highlights` | table | See below | Highlight groups for all UI elements |
 
 #### UI Options
@@ -324,7 +376,7 @@ require("bento").setup({
 |--------|------|---------|-------------|
 | `left_page_symbol` | string | `"❮"` | Symbol shown at left edge when previous buffers exist (pagination) |
 | `right_page_symbol` | string | `"❯"` | Symbol shown at right edge when more buffers exist (pagination) |
-| `separator_symbol` | string | `"|"` | Separator character between buffer components |
+| `separator_symbol` | string | `"│"` | Separator character between buffer components |
 
 ### Buffer Deletion Metrics
 
