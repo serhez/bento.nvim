@@ -826,6 +826,7 @@ function M.setup(config)
                 label_padding = 1,
                 minimal_menu = nil, -- nil | "dashed" | "filename" | "full"
                 max_rendered_buffers = nil, -- nil (no limit) or number
+                toggle_on_reexpand = true, -- pressing the expand key again closes the menu (false = expand key always activates)
             },
             tabline = {
                 left_page_symbol = "❮",

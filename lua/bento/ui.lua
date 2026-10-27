@@ -2018,10 +2018,23 @@ function M.cycle_minimal_menu()
 end
 
 --- Open and expand the menu (convenience function)
+--- Always enters the active (expanded) state. If the menu is already open it
+--- stays open and is re-expanded; it is never toggled closed by this call,
+--- unless `ui.floating.toggle_on_reexpand` is set (legacy behaviour).
 --- @return nil
 function M.open_menu()
     M.setup_state()
-    M.toggle_menu(true)
+
+    local menu_open = bento_win_id and vim.api.nvim_win_is_valid(bento_win_id)
+
+    if menu_open and config.ui.floating.toggle_on_reexpand then
+        M.close_menu()
+        return
+    end
+
+    if not menu_open then
+        M.toggle_menu(true)
+    end
     M.expand_menu()
 end
 

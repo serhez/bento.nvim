@@ -369,6 +369,7 @@ require("bento").setup({
 | `label_padding` | number | `1` | Padding on left/right of labels |
 | `minimal_menu` | string/nil | `nil` | Collapsed menu style: `nil` (hidden), `"dashed"` (dash lines), `"filename"` (names only), `"full"` (names + labels) |
 | `max_rendered_buffers` | number/nil | `nil` | Maximum buffers to display per page. Pagination is also automatically enabled when buffers exceed available screen height. Uses `min(max_rendered_buffers, available_height)` when set. Navigate pages with `[` and `]` keys. A centered indicator (`● ○ ○`) shows current page. |
+| `toggle_on_reexpand` | boolean | `true` | When `true` (default), pressing the expand key again closes the menu (legacy toggle). Set to `false` to make the expand key always (re)enter the active state and never close the menu. |
 
 #### Tabline UI Options (`ui.tabline`)
 
