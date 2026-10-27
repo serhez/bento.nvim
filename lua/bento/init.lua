@@ -2,6 +2,7 @@
 --- @module bento
 
 local utils = require("bento.utils")
+local notify = require("bento.notify")
 
 local M = {}
 
@@ -755,11 +756,7 @@ function M.enforce_buffer_limit(opts)
             or "[No Name]"
         local ok = pcall(vim.api.nvim_buf_delete, lru_buf, { force = false })
         if ok and config.buffer_notify_on_delete then
-            vim.notify(
-                "Deleted buffer " .. display_name,
-                vim.log.levels.INFO,
-                { title = "Buffer Manager" }
-            )
+            notify.info("Deleted buffer " .. display_name)
         end
         if ok then
             valid_buffers = valid_buffers - 1
@@ -798,10 +795,7 @@ function M.setup(config)
 
     local config_err = validate_config(config)
     if config_err then
-        vim.notify(
-            "bento.nvim: Invalid config - " .. config_err,
-            vim.log.levels.ERROR
-        )
+        notify.error("bento.nvim: Invalid config - " .. config_err)
         return
     end
 
@@ -811,6 +805,7 @@ function M.setup(config)
         max_open_buffers = nil, -- nil (unlimited) or number
         buffer_deletion_metric = "frecency_access", -- "recency_access", "recency_edit", "frecency_access", "frecency_edit"
         buffer_notify_on_delete = true,
+        notify_level = "info", -- false (off) | "debug" | "info" | "warn" | "error" -- minimum level for notifications
         ordering_metric = "access", -- nil | "access" | "edit" | "filename" | "directory"
         locked_first = false, -- Sort locked buffers to the top
         map_last_accessed = false, -- If true, last-accessed buffer gets a normal label (keymap still works)

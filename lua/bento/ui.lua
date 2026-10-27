@@ -3,6 +3,7 @@
 
 local bento = require("bento")
 local utils = require("bento.utils")
+local notify = require("bento.notify")
 local marks = require("bento").marks
 local line_keys = require("bento").line_keys
 
@@ -105,7 +106,7 @@ local function warn_once(key, message)
         return
     end
     warnings_shown[key] = true
-    vim.notify(message, vim.log.levels.WARN, { title = "Buffer Manager" })
+    notify.warn(message)
 end
 
 --- Initialize UI state from configuration
@@ -1696,11 +1697,7 @@ function M.toggle_menu(force_create)
 
         update_marks()
         if #marks == 0 then
-            vim.notify(
-                "No buffers to display",
-                vim.log.levels.INFO,
-                { title = "Buffer Manager" }
-            )
+            notify.debug("No buffers to display")
             return
         end
 
@@ -1736,11 +1733,7 @@ function M.toggle_menu(force_create)
     local total_buffers = #marks
 
     if total_buffers == 0 then
-        vim.notify(
-            "No buffers to display",
-            vim.log.levels.INFO,
-            { title = "Buffer Manager" }
-        )
+        notify.debug("No buffers to display")
         return
     end
 
@@ -1879,11 +1872,7 @@ function M.select_buffer(idx)
 
     local success, err = pcall(action_config.action, mark.buf_id, mark.filename)
     if not success then
-        vim.notify(
-            "Action failed: " .. tostring(err),
-            vim.log.levels.ERROR,
-            { title = "Buffer Manager" }
-        )
+        notify.error("Action failed: " .. tostring(err))
     else
         current_page = 1
         tabline_start_idx = 1
@@ -1895,20 +1884,12 @@ end
 --- @return nil
 function M.set_action_mode(action_name)
     if not config.actions[action_name] then
-        vim.notify(
-            "Unknown action: " .. action_name,
-            vim.log.levels.ERROR,
-            { title = "Buffer Manager" }
-        )
+        notify.error("Unknown action: " .. action_name)
         return
     end
 
     current_action = action_name
-    vim.notify(
-        "Action mode: " .. action_name,
-        vim.log.levels.INFO,
-        { title = "Buffer Manager" }
-    )
+    notify.info("Action mode: " .. action_name)
 
     if is_tabline_ui() then
         render_tabline_expanded()
@@ -1971,32 +1952,27 @@ function M.cycle_minimal_menu()
     M.setup_state()
 
     if is_tabline_ui() then
-        vim.notify(
-            "Minimal menu toggle is not available for tabline UI",
-            vim.log.levels.INFO,
-            { title = "Buffer Manager" }
-        )
+        notify.warn("Minimal menu toggle is not available for tabline UI")
         return
     end
 
-    local modes = { nil, "dashed", "filename", "full" }
+    -- Cycle order: disabled -> "dashed" -> "filename" -> "full" -> disabled.
+    -- `false` stands in for the disabled state so the list has no nil hole
+    -- (a leading nil would make `#modes` unreliable).
+    local modes = { false, "dashed", "filename", "full" }
     local current_idx = 1
     for i, mode in ipairs(modes) do
-        if minimal_menu_active == mode then
+        if (minimal_menu_active or false) == mode then
             current_idx = i
             break
         end
     end
 
     local next_idx = (current_idx % #modes) + 1
-    minimal_menu_active = modes[next_idx]
+    minimal_menu_active = modes[next_idx] or nil
 
     local mode_name = minimal_menu_active or "disabled"
-    vim.notify(
-        "Minimal menu: " .. mode_name,
-        vim.log.levels.INFO,
-        { title = "Buffer Manager" }
-    )
+    notify.debug("Minimal menu: " .. mode_name)
 
     if minimal_menu_active then
         if not bento_win_id or not vim.api.nvim_win_is_valid(bento_win_id) then

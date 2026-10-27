@@ -3,6 +3,8 @@
 --- All implementations are in internal modules; this is a thin wrapper.
 --- @module bento.api
 
+local notify = require("bento.notify")
+
 local M = {}
 
 --- Built-in action functions (exposed for use with register_action)
@@ -223,10 +225,7 @@ function M.set_default_action(action_name)
     local bento = require("bento")
     local config = bento.get_config()
     if not config.actions[action_name] then
-        vim.notify(
-            "bento.nvim: Unknown action '" .. action_name .. "'",
-            vim.log.levels.ERROR
-        )
+        notify.error("bento.nvim: Unknown action '" .. action_name .. "'")
         return
     end
     config.default_action = action_name
@@ -241,16 +240,12 @@ end
 --- @return nil
 function M.register_action(name, opts)
     if not opts.key then
-        vim.notify(
-            "bento.nvim: Action '" .. name .. "' requires a 'key' field",
-            vim.log.levels.ERROR
-        )
+        notify.error("bento.nvim: Action '" .. name .. "' requires a 'key' field")
         return
     end
     if not opts.action then
-        vim.notify(
-            "bento.nvim: Action '" .. name .. "' requires an 'action' field",
-            vim.log.levels.ERROR
+        notify.error(
+            "bento.nvim: Action '" .. name .. "' requires an 'action' field"
         )
         return
     end

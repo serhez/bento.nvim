@@ -294,6 +294,7 @@ require("bento").setup({
     max_open_buffers = nil, -- Max buffers (nil = unlimited)
     buffer_deletion_metric = "frecency_access", -- Metric for buffer deletion (see below)
     buffer_notify_on_delete = true, -- Notify when deleting a buffer (false for silent deletion)
+    notify_level = "info", -- Minimum notification level: "debug" | "info" | "warn" | "error", or false to disable
     ordering_metric = "access", -- Buffer ordering: nil (insertion order), "access", "edit", "filename", or "directory"
     locked_first = false, -- Sort locked buffers to the top
     map_last_accessed = false, -- If true, the last-accessed buffer also gets a filename-based label
@@ -346,6 +347,7 @@ require("bento").setup({
 | `max_open_buffers` | number/nil | `nil` | Maximum number of buffers to keep open (`nil` = unlimited) |
 | `buffer_deletion_metric` | string | `"frecency_access"` | Metric used to decide which buffer to delete when limit is reached (see below) |
 | `buffer_notify_on_delete` | boolean | `true` | Whether to create a notification via `vim.notify` when a buffer is deleted by the plugin |
+| `notify_level` | string/false | `"info"` | Minimum level for plugin notifications: `"debug"`, `"info"`, `"warn"`, `"error"`, or `false` to disable all. Informational toasts like "No buffers to display" are `debug` (hidden by default); errors are always shown. |
 | `ordering_metric` | string/nil | `"access"` | Buffer ordering: `nil` (insertion order), `"access"` (by last access time, most recent first), `"edit"` (by last edit time, most recent first), `"filename"` (alphabetical by filename), or `"directory"` (alphabetical by full path). |
 | `locked_first` | boolean | `false` | If true, locked buffers are always sorted to the top of the list. |
 | `map_last_accessed` | boolean | `false` | If true, the last-accessed buffer also gets a filename-based label like every other buffer. If false, it is reachable only through the key registered with `api.register_last_buffer_key()`. |
