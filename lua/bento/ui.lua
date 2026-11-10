@@ -532,11 +532,25 @@ local function calculate_position(height, width)
 
     local row, col
 
+    if position:match("^middle") then
+        row = math.floor((ui.height - height) / 2)
+        col = math.floor((ui.width - width) / 2)
+        return row + offset_x, col + offset_y
+    end
+
     -- Vertical positioning
     if position:match("^top") then
         row = 0
+        if position:match("middle$") then
+            col = math.floor((ui.width - width) / 2)
+            return row + offset_x, col + offset_y
+        end
     elseif position:match("^bottom") then
         row = ui.height - height
+        if position:match("middle$") then
+            col = math.floor((ui.width - width) / 2)
+            return row + offset_x, col + offset_y
+        end
     else
         row = math.floor((ui.height - height) / 2)
     end
